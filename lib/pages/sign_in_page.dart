@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'home.dart'; // Import home agar bisa navigasi
+import 'home.dart';
+import 'register.dart';
 
 class SignInPage2 extends StatelessWidget {
   const SignInPage2({Key? key}) : super(key: key);
@@ -10,7 +11,7 @@ class SignInPage2 extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Sign In"),
+        title: const Text(""),
         backgroundColor: const Color(0xFF0A192F), // Warna gelap
       ),
       body: Container(
@@ -37,12 +38,12 @@ class SignInPage2 extends StatelessWidget {
                         ],
                       ),
                     ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+                  ),
+                ),
+              ),
+            );
+          }
+        }
 
 class _Logo extends StatelessWidget {
   const _Logo({Key? key}) : super(key: key);
@@ -190,32 +191,45 @@ class __FormContentState extends State<_FormContent> {
               contentPadding: const EdgeInsets.all(0),
             ),
             _gap(),
-            // Tombol Sign In
             SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 23.0), // Tambahkan padding vertikal untuk membuat tombol lebih tinggi
+                      ),
+                      child: const Text('Sign in'),
+                      onPressed: () {},
+                    ),
                   ),
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.all(10.0),
-                  child: Text(
-                    'Sign in',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                onPressed: () {
-                  if (_formKey.currentState?.validate() ?? false) {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => HomePage()),
-                    );
-                  }
-                },
-              ),
+            _gap(),
+            TextButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/forgotpassword');
+              },
+              child: const Text('Forgot Password?'),
             ),
+            RichText(
+              text: TextSpan(
+                style: Theme.of(context).textTheme.bodyMedium,
+                children: [
+                  const TextSpan(
+                    text: "Don't have an account? ",
+                    style: TextStyle(color: Colors.white), // Ubah warna teks menjadi putih
+                  ),
+                  WidgetSpan(
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.pushNamed(context, '/register');
+                      },
+                      child: const Text(
+                        'Register',
+                        style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
           ],
         ),
       ),
