@@ -84,50 +84,45 @@ class AuthService {
     }
   }
 
-  static Future<User> login(LoginRequest request) async {
+  static Future<void> login(LoginRequest loginRequest) async {
     try {
-      print("Mengirim permintaan login ke: ${ApiConfig.baseUrl}/auth/login");
-      print("Request body: ${jsonEncode(request.toJson())}");
-
+      // Debug logging
+      print("Login attempt for user: ${loginRequest.username}");
+      print("API URL: ${ApiConfig.baseUrl}/auth/login");
+      
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/auth/login'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(request.toJson()),
+        body: jsonEncode({
+          'username': loginRequest.username,
+          'password': loginRequest.password,
+        }),
       );
 
-      print("Response status: ${response.statusCode}");
+      print("Response status code: ${response.statusCode}");
       print("Response body: ${response.body}");
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final user = User.fromJson(data);
-
-        // Pastikan token tidak null dan tersimpan dengan benar
-        if (user.token != null) {
-          _token = user.token;
-
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('auth_token', _token!);
-          await prefs.setString('user_id', user.id?.toString() ?? '');
-          await prefs.setString('username', user.username ?? '');
-          await prefs.setString('email', user.email ?? '');
-
-          print(
-            "Token saved successfully: ${_token!.substring(0, min(10, _token!.length))}...",
-          );
-        } else {
-          print("WARNING: Token is null from API response!");
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        
+        // Save user data based on the Response structure from your Spring Boot
+        final prefs = await SharedPreferences.getInstance();
+        
+        // Adjust these paths based on your actual API response structure
+        if (data.containsKey('data') && data['data'] != null) {
+          prefs.setString('auth_token', data['data']['token'] ?? '');
+          prefs.setString('username', data['data']['username'] ?? '');
         }
-
-        return user;
+        
+        return;
+      } else if (response.statusCode == 401) {
+        throw Exception('Invalid username or password');
       } else {
-        throw Exception(
-          'Login gagal: ${response.statusCode} - ${response.body}',
-        );
+        throw Exception('Authentication failed with status: ${response.statusCode}');
       }
     } catch (e) {
       print("Login exception: $e");
-      throw Exception('Login gagal: $e');
+      throw e;
     }
   }
 

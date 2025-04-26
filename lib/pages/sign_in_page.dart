@@ -205,13 +205,13 @@ class __FormContentState extends State<_FormContent> {
                 onPressed: () async {
                   if (_formKey.currentState?.validate() ?? false) {
                     try {
-                      // Tampilkan loading spinner
+                      // Show loading spinner
                       showDialog(
                         context: context,
                         barrierDismissible: false,
-                        builder:
-                            (context) =>
-                                Center(child: CircularProgressIndicator()),
+                        builder: (BuildContext dialogContext) {
+                          return const Center(child: CircularProgressIndicator());
+                        },
                       );
 
                       final loginRequest = LoginRequest(
@@ -219,20 +219,37 @@ class __FormContentState extends State<_FormContent> {
                         password: _passwordController.text,
                       );
 
-                      // Panggil service untuk login
-                      await AuthService.login(loginRequest);
-
-                      // Tutup dialog loading
-                      Navigator.pop(context);
-
-                      // Navigasi ke halaman utama
-                      Navigator.pushReplacementNamed(context, '/');
+                      try {
+                        // Add timeout to prevent infinite hanging
+                        await AuthService.login(loginRequest)
+                            .timeout(const Duration(seconds: 15));
+                            
+                        // Check if widget is still mounted before using context
+                        if (!mounted) return;
+                        
+                        // Close the loading dialog
+                        Navigator.of(context).pop();
+                        
+                        // Navigate to home page
+                        Navigator.pushReplacementNamed(context, '/');
+                      } catch (e) {
+                        // Check if widget is still mounted before using context
+                        if (!mounted) return;
+                        
+                        // Close the loading dialog
+                        Navigator.of(context).pop();
+                        
+                        // Then show error
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Login failed: ${e.toString()}')),
+                        );
+                      }
                     } catch (e) {
-                      // Tutup dialog loading
-                      Navigator.pop(context);
-
+                      // This catch block is for dialog-related errors
+                      if (!mounted) return;
+                      
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Login gagal: $e')),
+                        SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
                       );
                     }
                   }
