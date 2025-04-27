@@ -26,22 +26,18 @@ class Review {
       
       return '${date.day} ${months[date.month - 1]} ${date.year}';
     } catch (e) {
+      print("Error formatting date: $e for value: $createdAt");
       return createdAt;
     }
   }
 
   factory Review.fromJson(Map<String, dynamic> json) {
-    // Print for debugging
-    print("Processing review JSON: ${json.toString().substring(0, json.toString().length > 50 ? 50 : json.toString().length)}...");
-    
-    // Check field names from your Java model
+    // Simplified parsing - match fields from ReviewDTO
     return Review(
-      username: json['username'] ?? json['customerName'] ?? json['customer']?['username'] ?? 'Anonymous',
-      rating: (json['rating'] is int) 
-          ? (json['rating'] as int).toDouble() 
-          : (json['rating'] ?? 0.0),
-      comment: json['comment'] ?? json['reviewText'] ?? '',
-      createdAt: json['createdAt'] ?? json['createdDate'] ?? json['date'] ?? '',
+      username: json['username'] ?? 'Anonymous',
+      rating: json['rating'] is int ? (json['rating'] as int).toDouble() : 0.0,
+      comment: json['komentar'] ?? '',
+      createdAt: json['tanggalReview']?.toString(),
     );
   }
 }

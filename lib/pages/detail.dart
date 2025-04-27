@@ -345,23 +345,40 @@ class _DetailPageState extends State<DetailPage> {
 
     try {
       print("Fetching reviews for lapangan: ${widget.lapangan.id}");
+      
+      // Add a catch block for timeouts
       final reviews = await ReviewService.getReviewsByLapanganId(
         widget.lapangan.id,
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print("Review fetch timed out");
+          return [];
+        },
       );
       
       print("Fetched ${reviews.length} reviews");
       
-      setState(() {
-        _reviews = reviews;
-        _isLoadingReviews = false;
-      });
+      // Make sure widget is still mounted before updating state
+      if (mounted) {
+        setState(() {
+          _reviews = reviews;
+          _isLoadingReviews = false;
+        });
+      }
     } catch (e) {
       print("Error fetching reviews: $e");
-      setState(() {
-        _reviews = []; // Set empty list to avoid null issues
-        _isLoadingReviews = false;
-      });
-      // You may want to show an error snackbar here
+      if (mounted) {
+        setState(() {
+          _reviews = []; 
+          _isLoadingReviews = false;
+        });
+        
+        // Show error snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load reviews: ${e.toString().split('\n').first}')),
+        );
+      }
     }
   }
 
@@ -603,13 +620,13 @@ class _DetailPageState extends State<DetailPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Username on left side
+              // Username on left side with fallback
               Text(
-                name,
+                name.isNotEmpty ? name : "Anonymous",
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               // Date on right side
-              if (date != null)
+              if (date != null && date.isNotEmpty)
                 Text(
                   date,
                   style: TextStyle(color: Colors.grey[600], fontSize: 14),
@@ -623,7 +640,7 @@ class _DetailPageState extends State<DetailPage> {
               Icon(Icons.star, color: Colors.amber, size: 16),
               SizedBox(width: 4),
               Text(
-                rating.toStringAsFixed(1),
+                rating.isNaN ? "0.0" : rating.toStringAsFixed(1),
                 style: TextStyle(fontWeight: FontWeight.w500),
               ),
             ],
@@ -631,7 +648,7 @@ class _DetailPageState extends State<DetailPage> {
           SizedBox(height: 8),
           // Comment
           Text(
-            comment,
+            comment.isNotEmpty ? comment : "No comment provided",
             style: TextStyle(fontSize: 14),
           ),
         ],

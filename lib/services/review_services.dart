@@ -9,22 +9,39 @@ class ReviewService {
     try {
       // Debug
       print("Fetching reviews for lapangan ID: $lapanganId");
-      print("URL: ${ApiConfig.baseUrl}/review/$lapanganId");
       
+      // Make sure this path matches your ReviewApiController endpoint
+      final url = '${ApiConfig.baseUrl}/review/$lapanganId';
+      print("URL: $url");
+      
+      // Add timeout to prevent infinite loading
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/review/$lapanganId'),
+        Uri.parse(url),
         headers: await ApiConfig.getAuthHeaders(), // Use auth headers if needed
-      );
+      ).timeout(Duration(seconds: 10));
       
       // Debug
       print("Response status: ${response.statusCode}");
-      print("Response body: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}...");
       
       if (response.statusCode == 200) {
-        List<dynamic> jsonList = jsonDecode(response.body);
-        return jsonList.map((json) => Review.fromJson(json)).toList();
+        if (response.body.isEmpty) {
+          print("Response body is empty");
+          return [];
+        }
+        
+        print("Response body: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}...");
+        
+        try {
+          List<dynamic> jsonList = jsonDecode(response.body);
+          return jsonList.map((json) => Review.fromJson(json)).toList();
+        } catch (e) {
+          print("JSON parsing error: $e");
+          return [];
+        }
       } else {
-        throw Exception('Failed to load reviews: ${response.statusCode}');
+        print("Server error: ${response.statusCode}");
+        print("Error body: ${response.body}");
+        return [];
       }
     } catch (e) {
       print("Error fetching reviews: $e");
