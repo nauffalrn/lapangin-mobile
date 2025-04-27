@@ -100,8 +100,10 @@ class _ProfilePageState extends State<ProfilePage> {
       
       setState(() {
         _imageFile = File(pickedImage.path);
-        _isLoading = true; // Show loading while uploading
+        _isLoading = true;
       });
+      
+      print("About to upload image from path: ${pickedImage.path}");
       
       // Upload the image to your server
       final imageUrl = await ProfileService.uploadProfileImage(pickedImage.path);
@@ -117,10 +119,22 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       setState(() {
         _isLoading = false;
+        _imageFile = null; // Reset the image file on error
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mengambil gambar: $e'))
-      );
+      
+      // Check if it's an auth error
+      if (e.toString().contains('login again') || e.toString().contains('Unauthorized')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sesi anda habis. Silakan login kembali.'))
+        );
+        // Logout and redirect to login
+        await AuthService.logout();
+        Navigator.pushReplacementNamed(context, '/login');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mengambil gambar: $e'))
+        );
+      }
     }
   }
   
@@ -166,7 +180,7 @@ class _ProfilePageState extends State<ProfilePage> {
     });
     
     try {
-      // Send the new username to your server
+      // Send the new username to your server - WITHOUT token check
       await ProfileService.updateUsername(_usernameController.text);
       
       setState(() {
@@ -182,9 +196,25 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memperbarui username: $e'))
-      );
+      
+      // If the error contains "login" or "unauthorized", redirect to login
+      if (e.toString().toLowerCase().contains('login') || 
+          e.toString().toLowerCase().contains('auth') ||
+          e.toString().toLowerCase().contains('unauth')) {
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sesi anda habis. Silakan login kembali.'))
+        );
+        
+        // Logout and redirect to login
+        await AuthService.logout();
+        Navigator.pushReplacementNamed(context, '/login');
+      } else {
+        // For other errors, just show the error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memperbarui username: $e'))
+        );
+      }
     }
   }
 
@@ -230,7 +260,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         backgroundImage: (_imageFile != null) 
                             ? FileImage(_imageFile!) 
                             : (_profileImageUrl != null && _profileImageUrl!.isNotEmpty)
-                                ? NetworkImage('${ApiConfig.baseUrl}/users/images/${_profileImageUrl}') as ImageProvider
+                                ? NetworkImage('${ApiConfig.baseUrl}/profile/images/${_profileImageUrl}') as ImageProvider
                                 : null,
                         child: (_imageFile == null && (_profileImageUrl == null || _profileImageUrl!.isEmpty))
                             ? Text(

@@ -22,7 +22,12 @@ class DetailPage extends StatefulWidget {
 
 class _DetailPageState extends State<DetailPage> {
   DateTime? selectedDate;
-  String? selectedTime;
+  // Remove the single selectedTime variable
+  // String? selectedTime;
+  
+  // Add this new field to track multiple selected time slots
+  List<Map<String, dynamic>> _selectedTimeSlots = [];
+  
   double? _distance;
   bool _isLoadingLocation = false;
   bool _isLoadingSlots = false;
@@ -45,10 +50,12 @@ class _DetailPageState extends State<DetailPage> {
       firstDate: DateTime.now(),
       lastDate: DateTime(2101),
     );
+    
     if (picked != null) {
       setState(() {
         selectedDate = picked;
-        selectedTime = null; // Reset selected time when date changes
+        // Clear selected time slots when date changes
+        _selectedTimeSlots = [];
       });
 
       // Fetch available time slots for the selected date
@@ -119,163 +126,283 @@ class _DetailPageState extends State<DetailPage> {
     }
   }
 
+  // Update _selectTime method to support multiple selections
   void _selectTime(BuildContext context) {
     if (_timeSlots.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Tidak ada slot waktu tersedia')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Tidak ada slot waktu tersedia'))
+      );
       return;
     }
 
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
-        return Container(
-          padding: EdgeInsets.all(16),
-          height: 300,
-          child: Column(
-            children: [
-              Text(
-                "Pilih Jam",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 16),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _timeSlots.length,
-                  itemBuilder: (context, index) {
-                    final slot = _timeSlots[index];
-                    final bool isPast = slot['isPast'] ?? false;
-                    final bool isAvailable = slot['isAvailable'] ?? true;
+        // Create a StatefulBuilder to handle state changes within the bottom sheet
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Container(
+              padding: EdgeInsets.all(16),
+              height: 400, // Make it taller to fit more content
+              child: Column(
+                children: [
+                  Text(
+                    "Pilih Jam",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    "Anda dapat memilih lebih dari satu jam",
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  SizedBox(height: 16),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _timeSlots.length,
+                      itemBuilder: (context, index) {
+                        final slot = _timeSlots[index];
+                        final bool isPast = slot['isPast'] ?? false;
+                        final bool isAvailable = slot['isAvailable'] ?? true;
+                        
+                        // Check if this slot is selected
+                        final bool isSelected = _selectedTimeSlots.any(
+                          (selectedSlot) => selectedSlot['waktu'] == slot['waktu']
+                        );
 
-                    // Determine the color based on status
-                    Color? textColor;
-                    if (!isAvailable) {
-                      textColor = Colors.red; // Already booked
-                    } else if (isPast) {
-                      textColor = Colors.grey; // Past time
-                    }
+                        // Determine text color based on status
+                        Color? textColor;
+                        if (!isAvailable) {
+                          textColor = Colors.red;
+                        } else if (isPast) {
+                          textColor = Colors.grey;
+                        }
 
-                    return ListTile(
-                      title: Text(
-                        slot['waktu'],
-                        style: TextStyle(
-                          color: textColor,
-                          fontWeight:
-                              isAvailable && !isPast
+                        return CheckboxListTile(
+                          title: Text(
+                            slot['waktu'],
+                            style: TextStyle(
+                              color: textColor ?? (isSelected ? Colors.blue : null),
+                              fontWeight: isAvailable && !isPast
                                   ? FontWeight.bold
                                   : FontWeight.normal,
+                            ),
+                          ),
+                          subtitle: Text(
+                            isAvailable
+                                ? "Rp${slot['harga'].toString()}/jam"
+                                : "Sudah dipesan",
+                            style: TextStyle(color: textColor),
+                          ),
+                          value: isSelected,
+                          onChanged: isAvailable && !isPast
+                              ? (bool? value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      // Add to selected slots
+                                      _selectedTimeSlots.add(slot);
+                                    } else {
+                                      // Remove from selected slots
+                                      _selectedTimeSlots.removeWhere(
+                                        (selectedSlot) => selectedSlot['waktu'] == slot['waktu']
+                                      );
+                                    }
+                                  });
+                                  
+                                  // Also update the parent state
+                                  this.setState(() {});
+                                }
+                              : null,
+                          activeColor: Colors.blue,
+                        );
+                      },
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "${_selectedTimeSlots.length} jam dipilih",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        "Total: Rp${_calculateTotalPrice()}",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
                         ),
                       ),
-                      subtitle: Text(
-                        isAvailable
-                            ? "Tersedia - Rp${slot['harga'].toString()}"
-                            : "Sudah dipesan",
-                        style: TextStyle(color: textColor),
-                      ),
-                      enabled: isAvailable && !isPast,
-                      onTap:
-                          isAvailable && !isPast
-                              ? () {
-                                setState(() {
-                                  selectedTime = slot['waktu'];
-                                });
-                                Navigator.pop(context);
-                              }
-                              : null,
-                    );
-                  },
-                ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: _selectedTimeSlots.isNotEmpty
+                        ? () {
+                            Navigator.pop(context);
+                            this.setState(() {});
+                          }
+                        : null,
+                    child: Text("Konfirmasi Pilihan"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      minimumSize: Size(double.infinity, 50),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          }
         );
       },
     );
   }
 
-  // Fungsi untuk membuat booking
-  Future<void> _createBooking() async {
-    if (selectedDate == null || selectedTime == null) {
+  // Add a helper method to calculate total price
+  String _calculateTotalPrice() {
+    double total = 0;
+    for (var slot in _selectedTimeSlots) {
+      var price = slot['harga'];
+      if (price is int) {
+        total += price.toDouble();
+      } else if (price is double) {
+        total += price;
+      }
+    }
+    return total.toStringAsFixed(0);
+  }
+
+  // Add a method to get formatted selected time slots for display
+  String get _formattedSelectedTimes {
+    if (_selectedTimeSlots.isEmpty) return "Pilih Jam";
+    
+    // Sort slots by time
+    List<Map<String, dynamic>> sortedSlots = List.from(_selectedTimeSlots);
+    sortedSlots.sort((a, b) {
+      int hourA = int.parse(a['waktu'].split(':')[0]);
+      int hourB = int.parse(b['waktu'].split(':')[0]);
+      return hourA.compareTo(hourB);
+    });
+    
+    // Create text with format: "09:00, 10:00, 11:00"
+    return sortedSlots.map((slot) => slot['waktu']).join(", ");
+  }
+
+  // Update the _createBooking method with better error handling
+
+Future<void> _createBooking() async {
+  if (selectedDate == null || _selectedTimeSlots.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Silakan pilih tanggal dan minimal 1 jam'))
+    );
+    return;
+  }
+
+  try {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(child: CircularProgressIndicator()),
+    );
+    
+    // Check for valid token before proceeding
+    final token = await AuthService.ensureFreshToken();
+    if (token == null) {
+      // Close loading dialog
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Silakan pilih tanggal dan waktu')),
+        SnackBar(content: Text('Sesi anda habis. Silakan login kembali'))
       );
+      
+      Navigator.pushReplacementNamed(context, '/login');
       return;
     }
 
-    try {
-      // Tampilkan loading
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => Center(child: CircularProgressIndicator()),
-      );
+    // Create jadwalItems from selected slots
+    List<JadwalItem> jadwalItems = [];
+    
+    // Sort slots by time first
+    List<Map<String, dynamic>> sortedSlots = List.from(_selectedTimeSlots);
+    sortedSlots.sort((a, b) {
+      int hourA = int.parse(a['waktu'].split(':')[0]);
+      int hourB = int.parse(b['waktu'].split(':')[0]);
+      return hourA.compareTo(hourB);
+    });
+    
+    for (var slot in sortedSlots) {
+      // Extract hour from time string
+      int jamBooking = int.parse(slot['waktu'].split(':')[0]);
+      
+      // Get price from slot
+      var hargaValue = slot['harga'];
+      double harga = hargaValue is int ? hargaValue.toDouble() : 
+                     hargaValue is double ? hargaValue : 
+                     widget.lapangan.hargaSewa;
+                     
+      jadwalItems.add(JadwalItem(jam: jamBooking, harga: harga));
+    }
 
-      // Konversi waktu dari string ke integer jam
-      int jamBooking = int.parse(selectedTime!.split(':')[0]);
+    final booking = Booking(
+      lapanganId: widget.lapangan.id,
+      tanggal: DateFormat('yyyy-MM-dd').format(selectedDate!),
+      jadwalList: jadwalItems,
+      kodePromo: null,
+    );
+    
+    // Create the booking with direct token handling
+    final result = await BookingService.createBooking(booking);
 
-      // Cari harga dari slot yang dipilih
-      double harga = 0;
-      for (var slot in _timeSlots) {
-        if (slot['waktu'] == selectedTime && slot['isAvailable']) {
-          var hargaValue = slot['harga'];
-          harga =
-              hargaValue is int
-                  ? hargaValue.toDouble()
-                  : (hargaValue is double ? hargaValue : 0);
-          break;
-        }
-      }
-
-      // Jika harga tidak ditemukan, gunakan dari model lapangan
-      if (harga == 0) {
-        harga = widget.lapangan.hargaSewa;
-      }
-
-      // Buat item jadwal
-      List<JadwalItem> jadwalItems = [
-        JadwalItem(jam: jamBooking, harga: harga),
-      ];
-
-      final booking = Booking(
-        lapanganId: widget.lapangan.id,
-        tanggal: DateFormat('yyyy-MM-dd').format(selectedDate!),
-        jadwalList: jadwalItems,
-        kodePromo: null,
-      );
-
-      // Langsung gunakan service tanpa pengecekan token lagi
-      // Jika token tidak valid, exception akan dilempar dan ditangani di catch block
-      final result = await BookingService.createBooking(booking);
-
-      // Tutup loading dialog
+    // Close loading dialog
+    if (Navigator.canPop(context)) {
       Navigator.pop(context);
+    }
 
-      // Navigasi ke halaman pembayaran dengan data booking
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PembayaranPage(booking: result),
-        ),
-      );
-    } catch (e) {
-      // Tutup loading dialog
+    // Navigate to payment page with booking data
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PembayaranPage(booking: result),
+      ),
+    ).then((value) {
+      // Refresh state when returning from payment page
+      setState(() {
+        _selectedTimeSlots = [];
+        selectedDate = null;
+      });
+    });
+  } catch (e) {
+    // Close loading dialog
+    if (Navigator.canPop(context)) {
       Navigator.pop(context);
+    }
 
-      // Cek apakah error autentikasi
-      if (e.toString().contains('login')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sesi anda habis. Silakan login kembali')),
-        );
-        // Navigasi ke login
-        Navigator.pushReplacementNamed(context, '/login');
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Gagal membuat booking: $e')));
-      }
+    String errorMessage = e.toString().toLowerCase();
+    
+    // Check for different authentication error patterns
+    if (errorMessage.contains('login') || 
+        errorMessage.contains('auth') ||
+        errorMessage.contains('unauth') ||
+        errorMessage.contains('expired') ||
+        errorMessage.contains('token')) {
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sesi anda habis. Silakan login kembali'))
+      );
+      
+      // Logout and redirect to login
+      await AuthService.logout();
+      Navigator.pushReplacementNamed(context, '/login');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membuat booking: $e'))
+      );
     }
   }
+}
 
   Future<void> _getCurrentLocation() async {
     setState(() {
@@ -525,15 +652,44 @@ class _DetailPageState extends State<DetailPage> {
                       SizedBox(width: 10),
                       _isLoadingSlots
                           ? CircularProgressIndicator(strokeWidth: 2)
-                          : ElevatedButton(
-                            onPressed:
-                                selectedDate == null
+                          : Expanded(
+                              child: ElevatedButton(
+                                onPressed: selectedDate == null
                                     ? null
                                     : () => _selectTime(context),
-                            child: Text(selectedTime ?? "Pilih Jam"),
-                          ),
+                                child: Text(
+                                  _selectedTimeSlots.isEmpty 
+                                      ? "Pilih Jam" 
+                                      : "${_selectedTimeSlots.length} jam dipilih",
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
                     ],
                   ),
+
+                  if (_selectedTimeSlots.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Jam terpilih: ${_formattedSelectedTimes}",
+                            style: TextStyle(fontSize: 14, color: Colors.blue),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            "Total: Rp${_calculateTotalPrice()}",
+                            style: TextStyle(
+                              fontSize: 16, 
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   SizedBox(height: 16),
                   Text(
                     "Deskripsi:",
@@ -579,7 +735,6 @@ class _DetailPageState extends State<DetailPage> {
                       ),
                         
                   // Booking button
-                  SizedBox(height: 30),
                   Center(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -589,7 +744,7 @@ class _DetailPageState extends State<DetailPage> {
                           vertical: 12,
                         ),
                       ),
-                      onPressed: selectedDate != null && selectedTime != null
+                      onPressed: selectedDate != null && _selectedTimeSlots.isNotEmpty
                         ? _createBooking
                         : null,
                       child: Text(

@@ -6,6 +6,7 @@ import '../services/lapangan_services.dart';
 import '../models/lapangan_model.dart';
 import '../services/auth_service.dart';
 import '../config/api_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
   @override
@@ -109,30 +110,45 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // Update this method to show the actual profile picture
   Widget _buildProfileIcon() {
     return InkWell(
       onTap: () {
         Navigator.push(
           context, 
           MaterialPageRoute(builder: (context) => ProfilePage()),
-        );
+        ).then((_) {
+          // Refresh when coming back from profile
+          setState(() {});
+        });
       },
       child: Padding(
         padding: const EdgeInsets.only(right: 16.0),
-        child: CircleAvatar(
-          radius: 22,
-          backgroundColor: Colors.white,
-          child: ClipOval(
-            child: Image.asset(
-              'assets/yayaya.jpeg', 
-              fit: BoxFit.cover,
-              width: 44,
-              height: 44,
-              errorBuilder: (context, error, stackTrace) {
-                return Icon(Icons.person, size: 30, color: Colors.blue);
-              },
-            ),
-          ),
+        child: FutureBuilder<SharedPreferences>(
+          future: SharedPreferences.getInstance(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return CircleAvatar(
+                radius: 22,
+                backgroundColor: Colors.white,
+                child: Icon(Icons.person, size: 30, color: Color(0xFF0A192F)),
+              );
+            }
+            
+            final prefs = snapshot.data!;
+            final profileImage = prefs.getString('profile_image');
+            
+            return CircleAvatar(
+              radius: 22,
+              backgroundColor: Colors.white,
+              backgroundImage: profileImage != null && profileImage.isNotEmpty
+                  ? NetworkImage('${ApiConfig.baseUrl}/profile/images/$profileImage')
+                  : null,
+              child: profileImage == null || profileImage.isEmpty
+                  ? Icon(Icons.person, size: 30, color: Color(0xFF0A192F))
+                  : null,
+            );
+          },
         ),
       ),
     );

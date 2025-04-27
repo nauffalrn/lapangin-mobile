@@ -28,6 +28,7 @@ class Booking {
   final String? statusPembayaran;
   final String? buktiPembayaran;
   final double? totalHarga;
+  String? waktu; // Changed from final to mutable
 
   Booking({
     this.id,
@@ -38,22 +39,8 @@ class Booking {
     this.statusPembayaran,
     this.buktiPembayaran,
     this.totalHarga,
+    this.waktu,
   });
-
-  // Tambahkan getter untuk mendapatkan waktu yang diformat dari jadwalList
-  String get waktu {
-    if (jadwalList.isEmpty) return "Tidak ada jadwal";
-
-    // Urutkan jadwal berdasarkan jam
-    List<JadwalItem> sortedJadwal = List.from(jadwalList)
-      ..sort((a, b) => a.jam.compareTo(b.jam));
-
-    // Format jam ke string seperti "14:00"
-    List<String> times = sortedJadwal.map((item) => "${item.jam}:00").toList();
-
-    // Gabungkan dengan koma
-    return times.join(", ");
-  }
 
   factory Booking.fromJson(Map<String, dynamic> json) {
     try {
@@ -74,6 +61,7 @@ class Booking {
             json['totalHarga'] != null
                 ? double.tryParse(json['totalHarga'].toString())
                 : null,
+        waktu: json['waktu'], // Make sure this is included
       );
     } catch (e) {
       print("Error parsing Booking: $e");

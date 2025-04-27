@@ -141,13 +141,17 @@ class AuthService {
     }
   }
 
+  // Update the logout method to clear all user data
   static Future<void> logout() async {
     _token = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
     await prefs.remove('user_id');
     await prefs.remove('username');
+    await prefs.remove('name');
     await prefs.remove('email');
+    await prefs.remove('phone_number');
+    await prefs.remove('profile_image');
   }
 
   static Future<bool> reAuthenticate() async {
@@ -173,6 +177,51 @@ class AuthService {
     } catch (e) {
       print("Re-authentication failed: $e");
       return false;
+    }
+  }
+
+  // Add this method to AuthService
+
+  // Method to check token validity and refresh if needed
+  static Future<String?> ensureFreshToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      
+      if (token == null || token.isEmpty) {
+        print("No token found, need to login");
+        return null;
+      }
+      
+      // Check if token is valid by making a simple GET request
+      try {
+        print("Checking token validity...");
+        final response = await http.get(
+          Uri.parse('${ApiConfig.baseUrl}/profile/check-token'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
+        ).timeout(Duration(seconds: 5));
+        
+        if (response.statusCode == 200) {
+          print("Token is valid");
+          return token;
+        } else {
+          print("Token is invalid, status: ${response.statusCode}");
+          // Token is invalid, try to reauth
+          final success = await reAuthenticate();
+          if (success) {
+            return getToken();
+          }
+          return null;
+        }
+      } catch (e) {
+        print("Error checking token: $e");
+        return token; // Return existing token if unable to check
+      }
+    } catch (e) {
+      print("Error ensuring fresh token: $e");
+      return null;
     }
   }
 }

@@ -23,11 +23,27 @@ class ApiConfig {
   }
 
   // Helper untuk mengambil headers dengan token
+  // Update the getAuthHeaders method to add session cookie support if needed
   static Future<Map<String, String>> getAuthHeaders() async {
     final token = await AuthService.getToken();
     if (token == null) {
       print("WARNING: No auth token found!");
       return {'Content-Type': 'application/json'};
+    }
+
+    print("Using auth token: ${token.substring(0, min(10, token.length))}...");
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+  }
+
+  // Improve the getAuthHeadersWithRefresh method
+  static Future<Map<String, String>> getAuthHeadersWithRefresh() async {
+    final token = await AuthService.getTokenWithRefresh();
+    if (token == null || token.isEmpty) {
+      print("WARNING: No auth token found after refresh attempt!");
+      throw Exception('Not authenticated. Please login first.');
     }
 
     print("Using auth token: ${token.substring(0, min(10, token.length))}...");

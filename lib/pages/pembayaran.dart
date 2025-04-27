@@ -96,9 +96,20 @@ class _PembayaranPageState extends State<PembayaranPage> {
                     SizedBox(height: 10),
                     Text("ID Booking: #${widget.booking.id}"),
                     Text("Tanggal: ${widget.booking.tanggal}"),
+                    
+                    // Display the time slots
                     Text("Waktu: ${widget.booking.waktu}"),
+                    
+                    // Display the number of hours
+                    if (widget.booking.waktu != null) 
+                      Text("Jumlah Jam: ${widget.booking.waktu!.split(',').length}"),
+                    
                     Text(
-                      "Total: Rp ${widget.booking.totalHarga?.toStringAsFixed(0) ?? "0"}",
+                      "Total: Rp${widget.booking.totalHarga?.toStringAsFixed(0) ?? '0'}",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
                     ),
                   ],
                 ),
