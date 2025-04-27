@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../pages/home.dart';
 import '../pages/history.dart';
-import '../pages/profile.dart';
 
 class CustomBottomNavigationBar extends StatelessWidget {
   final int currentIndex;
@@ -16,10 +15,8 @@ class CustomBottomNavigationBar extends StatelessWidget {
         String route;
         if (index == 0) {
           route = '/';
-        } else if (index == 1) {
-          route = '/history';
         } else {
-          route = '/profile';
+          route = '/history';
         }
         Navigator.of(context).pushReplacementNamed(route);
       },
@@ -31,10 +28,6 @@ class CustomBottomNavigationBar extends StatelessWidget {
         BottomNavigationBarItem(
           icon: Icon(Icons.history, color: Colors.white),
           label: 'History',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person, color: Colors.white),
-          label: 'Profile',
         ),
       ],
       selectedItemColor: Colors.white,

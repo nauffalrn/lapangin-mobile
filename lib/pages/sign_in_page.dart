@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'home.dart'; // Import home agar bisa navigasi
+import 'home.dart';
+import 'register.dart';
+import '../services/auth_service.dart';
+import '../models/auth_model.dart';
 
 class SignInPage2 extends StatelessWidget {
   const SignInPage2({Key? key}) : super(key: key);
@@ -10,7 +13,7 @@ class SignInPage2 extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Sign In"),
+        title: const Text(""),
         backgroundColor: const Color(0xFF0A192F), // Warna gelap
       ),
       body: Container(
@@ -190,30 +193,84 @@ class __FormContentState extends State<_FormContent> {
               contentPadding: const EdgeInsets.all(0),
             ),
             _gap(),
-            // Tombol Sign In
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 23.0,
+                  ), // Tambahkan padding vertikal untuk membuat tombol lebih tinggi
                 ),
-                child: const Padding(
-                  padding: EdgeInsets.all(10.0),
-                  child: Text(
-                    'Sign in',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                onPressed: () {
+                child: const Text('Sign in'),
+                onPressed: () async {
                   if (_formKey.currentState?.validate() ?? false) {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => HomePage()),
-                    );
+                    try {
+                      // Tampilkan loading spinner
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder:
+                            (context) =>
+                                Center(child: CircularProgressIndicator()),
+                      );
+
+                      final loginRequest = LoginRequest(
+                        username: _loginController.text,
+                        password: _passwordController.text,
+                      );
+
+                      // Panggil service untuk login
+                      await AuthService.login(loginRequest);
+
+                      // Tutup dialog loading
+                      Navigator.pop(context);
+
+                      // Navigasi ke halaman utama
+                      Navigator.pushReplacementNamed(context, '/');
+                    } catch (e) {
+                      // Tutup dialog loading
+                      Navigator.pop(context);
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Login gagal: $e')),
+                      );
+                    }
                   }
                 },
+              ),
+            ),
+            _gap(),
+            TextButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/forgotpassword');
+              },
+              child: const Text('Forgot Password?'),
+            ),
+            RichText(
+              text: TextSpan(
+                style: Theme.of(context).textTheme.bodyMedium,
+                children: [
+                  const TextSpan(
+                    text: "Don't have an account? ",
+                    style: TextStyle(
+                      color: Colors.white,
+                    ), // Ubah warna teks menjadi putih
+                  ),
+                  WidgetSpan(
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.pushNamed(context, '/register');
+                      },
+                      child: const Text(
+                        'Register',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
