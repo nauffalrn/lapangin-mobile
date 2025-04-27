@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math'; // Tambahkan import untuk min()
 import 'package:http/http.dart' as http;
@@ -97,21 +98,35 @@ class AuthService {
           'username': loginRequest.username,
           'password': loginRequest.password,
         }),
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw TimeoutException('Connection timed out'),
       );
 
       print("Response status code: ${response.statusCode}");
       print("Response body: ${response.body}");
 
+      // Check response size before processing
+      if (response.contentLength != null && response.contentLength! > 10 * 1024 * 1024) {
+        throw Exception('Response too large (${response.contentLength! ~/ (1024 * 1024)} MB)');
+      }
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
         
-        // Save user data based on the Response structure from your Spring Boot
+        // Save user data based on your Customer model structure
         final prefs = await SharedPreferences.getInstance();
         
-        // Adjust these paths based on your actual API response structure
+        // Store all user fields from your Customer model
         if (data.containsKey('data') && data['data'] != null) {
-          prefs.setString('auth_token', data['data']['token'] ?? '');
-          prefs.setString('username', data['data']['username'] ?? '');
+          var userData = data['data'];
+          prefs.setString('auth_token', userData['token'] ?? '');
+          prefs.setString('user_id', userData['id']?.toString() ?? '');
+          prefs.setString('username', userData['username'] ?? '');
+          prefs.setString('name', userData['name'] ?? '');
+          prefs.setString('email', userData['email'] ?? '');
+          prefs.setString('phone_number', userData['phoneNumber'] ?? '');
+          prefs.setString('profile_image', userData['profileImage'] ?? '');
         }
         
         return;

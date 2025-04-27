@@ -220,10 +220,13 @@ class __FormContentState extends State<_FormContent> {
                       );
 
                       try {
-                        // Add timeout to prevent infinite hanging
+                        // Add both timeout and response size protection
                         await AuthService.login(loginRequest)
-                            .timeout(const Duration(seconds: 15));
-                            
+                            .timeout(
+                              const Duration(seconds: 15),
+                              onTimeout: () => throw Exception("Login timed out. Please try again."),
+                            );
+                        
                         // Check if widget is still mounted before using context
                         if (!mounted) return;
                         
@@ -231,7 +234,7 @@ class __FormContentState extends State<_FormContent> {
                         Navigator.of(context).pop();
                         
                         // Navigate to home page
-                        Navigator.pushReplacementNamed(context, '/');
+                        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
                       } catch (e) {
                         // Check if widget is still mounted before using context
                         if (!mounted) return;
@@ -239,9 +242,15 @@ class __FormContentState extends State<_FormContent> {
                         // Close the loading dialog
                         Navigator.of(context).pop();
                         
+                        // Specific error message for out of memory errors
+                        String errorMessage = e.toString();
+                        if (errorMessage.contains('Out of Memory')) {
+                          errorMessage = 'Server response too large. Please contact support.';
+                        }
+                        
                         // Then show error
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Login failed: ${e.toString()}')),
+                          SnackBar(content: Text('Login failed: $errorMessage')),
                         );
                       }
                     } catch (e) {

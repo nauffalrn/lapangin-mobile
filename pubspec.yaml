@@ -30,7 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  image_picker: ^1.0.7
+  image_picker: ^1.0.0  # Use the latest version
   intl: ^0.18.0
   url_launcher: ^6.1.10
   geolocator: ^10.0.0

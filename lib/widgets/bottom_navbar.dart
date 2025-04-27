@@ -12,12 +12,15 @@ class CustomBottomNavigationBar extends StatelessWidget {
       backgroundColor: Color(0xFF0A192F),
       currentIndex: currentIndex,
       onTap: (index) {
-        String route;
+        // Initialize route with a default value
+        String route = '/';
+        
         if (index == 0) {
           route = '/';
-        } else {
+        } else if (index == 1) {
           route = '/history';
         }
+        
         Navigator.of(context).pushReplacementNamed(route);
       },
       items: const [
