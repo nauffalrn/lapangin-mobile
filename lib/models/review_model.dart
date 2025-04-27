@@ -1,46 +1,47 @@
 class Review {
-  final int id;
-  final int userId;
-  final String username; // Pastikan field ini ada di response
-  final int lapanganId;
+  final String username;
   final double rating;
   final String comment;
-  final String createdAt;
+  final String? createdAt; // ISO format date from API
 
   Review({
-    required this.id,
-    required this.userId,
     required this.username,
-    required this.lapanganId,
     required this.rating,
     required this.comment,
-    required this.createdAt,
+    this.createdAt,
   });
 
+  // Format the date as "DD Month YYYY" in Indonesian
+  String? get formattedDate {
+    if (createdAt == null) return null;
+
+    try {
+      final date = DateTime.parse(createdAt!);
+      
+      // List of Indonesian month names
+      final months = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      ];
+      
+      return '${date.day} ${months[date.month - 1]} ${date.year}';
+    } catch (e) {
+      return createdAt;
+    }
+  }
+
   factory Review.fromJson(Map<String, dynamic> json) {
+    // Print for debugging
+    print("Processing review JSON: ${json.toString().substring(0, json.toString().length > 50 ? 50 : json.toString().length)}...");
+    
+    // Check field names from your Java model
     return Review(
-      id:
-          json['id'] is String
-              ? int.parse(json['id'].toString())
-              : (json['id'] ?? 0),
-      userId:
-          json['userId'] is String
-              ? int.parse(json['userId'].toString())
-              : (json['userId'] ?? 0),
-      username:
-          json['username'] ??
-          json['user']?['username'] ??
-          'Unknown User', // Coba ambil dari nested user object jika ada
-      lapanganId:
-          json['lapanganId'] is String
-              ? int.parse(json['lapanganId'].toString())
-              : (json['lapanganId'] ?? 0),
-      rating:
-          json['rating'] != null
-              ? double.parse(json['rating'].toString())
-              : 0.0,
-      comment: json['comment'] ?? '',
-      createdAt: json['createdAt'] ?? '',
+      username: json['username'] ?? json['customerName'] ?? json['customer']?['username'] ?? 'Anonymous',
+      rating: (json['rating'] is int) 
+          ? (json['rating'] as int).toDouble() 
+          : (json['rating'] ?? 0.0),
+      comment: json['comment'] ?? json['reviewText'] ?? '',
+      createdAt: json['createdAt'] ?? json['createdDate'] ?? json['date'] ?? '',
     );
   }
 }

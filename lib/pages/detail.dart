@@ -344,9 +344,13 @@ class _DetailPageState extends State<DetailPage> {
     });
 
     try {
+      print("Fetching reviews for lapangan: ${widget.lapangan.id}");
       final reviews = await ReviewService.getReviewsByLapanganId(
         widget.lapangan.id,
       );
+      
+      print("Fetched ${reviews.length} reviews");
+      
       setState(() {
         _reviews = reviews;
         _isLoadingReviews = false;
@@ -354,8 +358,10 @@ class _DetailPageState extends State<DetailPage> {
     } catch (e) {
       print("Error fetching reviews: $e");
       setState(() {
+        _reviews = []; // Set empty list to avoid null issues
         _isLoadingReviews = false;
       });
+      // You may want to show an error snackbar here
     }
   }
 
@@ -418,10 +424,20 @@ class _DetailPageState extends State<DetailPage> {
                       Icon(Icons.star, color: Colors.orange, size: 20),
                       SizedBox(width: 4),
                       Text(
-                        '4.8', // Rating dari backend
+                        widget.lapangan.rating != null 
+                          ? widget.lapangan.rating!.toStringAsFixed(1) 
+                          : '0.0',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        '(${widget.lapangan.reviews ?? 0} reviews)',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
                         ),
                       ),
                     ],
@@ -511,61 +527,42 @@ class _DetailPageState extends State<DetailPage> {
                     widget.lapangan.deskripsi,
                     style: TextStyle(fontSize: 16),
                   ),
-                  SizedBox(height: 15),
+                  
+                  // Single Reviews Section - formatted like in the image
+                  SizedBox(height: 24),
                   Text(
                     'Reviews',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 10),
-                  widget.lapangan.rating != null
-                      ? Row(
-                        children: [
-                          Icon(Icons.star, color: Colors.amber, size: 20),
-                          SizedBox(width: 5),
-                          Text(
-                            '${widget.lapangan.rating!.toStringAsFixed(1)}',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            ' (${widget.lapangan.reviews ?? 0} reviews)',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      )
-                      : Text(
-                        'Belum ada review',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                  SizedBox(height: 10),
+                  
+                  // Replace the overall rating row with just a message if needed
                   _isLoadingReviews
-                      ? Center(child: CircularProgressIndicator())
-                      : _reviews.isEmpty
-                      ? Center(
-                        child: Text(
-                          "Belum ada ulasan",
+                    ? Center(child: CircularProgressIndicator(strokeWidth: 2))
+                    : _reviews.isEmpty
+                      ? Text(
+                          'Belum ada ulasan',
                           style: TextStyle(color: Colors.grey),
-                        ),
-                      )
-                      : Column(
-                        children:
-                            _reviews
-                                .map(
-                                  (review) => _buildReviewItem(
-                                    review.username,
-                                    review.rating,
-                                    review.comment,
-                                  ),
-                                )
-                                .toList(),
+                        )
+                      : SizedBox(), // Empty SizedBox instead of showing rating again
+                      
+                  // Individual reviews list
+                  SizedBox(height: 16),
+                  _reviews.isEmpty 
+                    ? SizedBox() // Don't show duplicate "no reviews" message
+                    : Column(
+                        children: _reviews
+                          .map((review) => _buildReviewItem(
+                            review.username,
+                            review.rating,
+                            review.comment,
+                            review.formattedDate ?? '', // Add the date here
+                          ))
+                          .toList(),
                       ),
-                  SizedBox(height: 20),
-                  SizedBox(height: 20),
+                        
+                  // Booking button
+                  SizedBox(height: 30),
                   Center(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -575,53 +572,13 @@ class _DetailPageState extends State<DetailPage> {
                           vertical: 12,
                         ),
                       ),
-                      onPressed:
-                          selectedDate != null && selectedTime != null
-                              ? _createBooking
-                              : null,
+                      onPressed: selectedDate != null && selectedTime != null
+                        ? _createBooking
+                        : null,
                       child: Text(
                         "Pesan Sekarang",
                         style: TextStyle(color: Colors.white, fontSize: 16),
                       ),
-                    ),
-                  ),
-                  // Add Reviews Section
-                  Padding(
-                    padding: const EdgeInsets.only(top: 20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              "Reviews",
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.star,
-                                  color: Colors.orange,
-                                  size: 16,
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  "${widget.lapangan.rating?.toStringAsFixed(1) ?? '0.0'} (${widget.lapangan.reviews ?? 0} ulasan)",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                      ],
                     ),
                   ),
                 ],
@@ -634,9 +591,9 @@ class _DetailPageState extends State<DetailPage> {
   }
 
   // Helper method for review items
-  Widget _buildReviewItem(String name, double rating, String comment) {
+  Widget _buildReviewItem(String name, double rating, String comment, [String? date]) {
     return Container(
-      padding: EdgeInsets.symmetric(vertical: 10),
+      padding: EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
@@ -646,18 +603,37 @@ class _DetailPageState extends State<DetailPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(name, style: TextStyle(fontWeight: FontWeight.bold)),
-              Row(
-                children: [
-                  Icon(Icons.star, color: Colors.orange, size: 14),
-                  SizedBox(width: 2),
-                  Text("$rating"),
-                ],
+              // Username on left side
+              Text(
+                name,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              // Date on right side
+              if (date != null)
+                Text(
+                  date,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                ),
+            ],
+          ),
+          SizedBox(height: 4),
+          // Star rating with number
+          Row(
+            children: [
+              Icon(Icons.star, color: Colors.amber, size: 16),
+              SizedBox(width: 4),
+              Text(
+                rating.toStringAsFixed(1),
+                style: TextStyle(fontWeight: FontWeight.w500),
               ),
             ],
           ),
-          SizedBox(height: 5),
-          Text(comment),
+          SizedBox(height: 8),
+          // Comment
+          Text(
+            comment,
+            style: TextStyle(fontSize: 14),
+          ),
         ],
       ),
     );
