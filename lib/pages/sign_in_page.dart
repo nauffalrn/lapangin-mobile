@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'home.dart';
 import 'register.dart';
+import '../services/auth_service.dart';
+import '../models/auth_model.dart';
 
 class SignInPage2 extends StatelessWidget {
   const SignInPage2({Key? key}) : super(key: key);
@@ -38,12 +40,12 @@ class SignInPage2 extends StatelessWidget {
                         ],
                       ),
                     ),
-                  ),
-                ),
-              ),
-            );
-          }
-        }
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _Logo extends StatelessWidget {
   const _Logo({Key? key}) : super(key: key);
@@ -192,15 +194,51 @@ class __FormContentState extends State<_FormContent> {
             ),
             _gap(),
             SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 23.0), // Tambahkan padding vertikal untuk membuat tombol lebih tinggi
-                      ),
-                      child: const Text('Sign in'),
-                      onPressed: () {},
-                    ),
-                  ),
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 23.0,
+                  ), // Tambahkan padding vertikal untuk membuat tombol lebih tinggi
+                ),
+                child: const Text('Sign in'),
+                onPressed: () async {
+                  if (_formKey.currentState?.validate() ?? false) {
+                    try {
+                      // Tampilkan loading spinner
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder:
+                            (context) =>
+                                Center(child: CircularProgressIndicator()),
+                      );
+
+                      final loginRequest = LoginRequest(
+                        username: _loginController.text,
+                        password: _passwordController.text,
+                      );
+
+                      // Panggil service untuk login
+                      await AuthService.login(loginRequest);
+
+                      // Tutup dialog loading
+                      Navigator.pop(context);
+
+                      // Navigasi ke halaman utama
+                      Navigator.pushReplacementNamed(context, '/');
+                    } catch (e) {
+                      // Tutup dialog loading
+                      Navigator.pop(context);
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Login gagal: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
             _gap(),
             TextButton(
               onPressed: () {
@@ -214,7 +252,9 @@ class __FormContentState extends State<_FormContent> {
                 children: [
                   const TextSpan(
                     text: "Don't have an account? ",
-                    style: TextStyle(color: Colors.white), // Ubah warna teks menjadi putih
+                    style: TextStyle(
+                      color: Colors.white,
+                    ), // Ubah warna teks menjadi putih
                   ),
                   WidgetSpan(
                     child: InkWell(
@@ -223,13 +263,16 @@ class __FormContentState extends State<_FormContent> {
                       },
                       child: const Text(
                         'Register',
-                        style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
-            )
+            ),
           ],
         ),
       ),

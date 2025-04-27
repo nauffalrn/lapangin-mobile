@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home.dart';
+import '../services/auth_service.dart';
+import '../models/auth_model.dart';
 
 class RegisterPage extends StatelessWidget {
   const RegisterPage({Key? key}) : super(key: key);
@@ -17,25 +19,26 @@ class RegisterPage extends StatelessWidget {
         color: const Color(0xFF0A192F),
         child: Center(
           child: SingleChildScrollView(
-            child: isSmallScreen
-                ? Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      _Logo(),
-                      SizedBox(height: 32),
-                      _RegisterForm(),
-                    ],
-                  )
-                : Container(
-                    padding: const EdgeInsets.all(32.0),
-                    constraints: const BoxConstraints(maxWidth: 800),
-                    child: Row(
+            child:
+                isSmallScreen
+                    ? Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: const [
-                        Expanded(child: _Logo()),
-                        Expanded(child: Center(child: _RegisterForm())),
+                        _Logo(),
+                        SizedBox(height: 32),
+                        _RegisterForm(),
                       ],
+                    )
+                    : Container(
+                      padding: const EdgeInsets.all(32.0),
+                      constraints: const BoxConstraints(maxWidth: 800),
+                      child: Row(
+                        children: const [
+                          Expanded(child: _Logo()),
+                          Expanded(child: Center(child: _RegisterForm())),
+                        ],
+                      ),
                     ),
-                  ),
           ),
         ),
       ),
@@ -62,9 +65,9 @@ class _Logo extends StatelessWidget {
         Text(
           "Join Lapangin!",
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Colors.white,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(color: Colors.white),
         ),
       ],
     );
@@ -83,7 +86,10 @@ class __RegisterFormState extends State<_RegisterForm> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneNumberController = TextEditingController();
 
   bool _isPasswordVisible = false;
 
@@ -120,13 +126,45 @@ class __RegisterFormState extends State<_RegisterForm> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildTextField(_emailController, "Email", "Enter your email", Icons.email, true),
+            _buildTextField(
+              _emailController,
+              "Email",
+              "Enter your email",
+              Icons.email,
+              true,
+            ),
             _gap(),
-            _buildTextField(_usernameController, "Username", "Enter your username", Icons.person, false),
+            _buildTextField(
+              _usernameController,
+              "Username",
+              "Enter your username",
+              Icons.person,
+              false,
+            ),
+            _gap(),
+            _buildTextField(
+              _nameController,
+              "Name",
+              "Enter your name",
+              Icons.person,
+              false,
+            ),
+            _gap(),
+            _buildTextField(
+              _phoneNumberController,
+              "Phone Number",
+              "Enter your phone number",
+              Icons.phone,
+              false,
+            ),
             _gap(),
             _buildPasswordField(_passwordController, "Password"),
             _gap(),
-            _buildPasswordField(_confirmPasswordController, "Confirm Password", isConfirm: true),
+            _buildPasswordField(
+              _confirmPasswordController,
+              "Confirm Password",
+              isConfirm: true,
+            ),
             _gap(),
             SizedBox(
               width: double.infinity,
@@ -143,11 +181,70 @@ class __RegisterFormState extends State<_RegisterForm> {
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
-                onPressed: () {
+                onPressed: () async {
                   if (_formKey.currentState?.validate() ?? false) {
-                    _showSuccessDialog();
+                    try {
+                      // Tampilkan loading spinner
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder:
+                            (context) =>
+                                Center(child: CircularProgressIndicator()),
+                      );
+
+                      // Buat objek permintaan register
+                      final registerRequest = RegisterRequest(
+                        name: _nameController.text,
+                        username: _usernameController.text,
+                        email: _emailController.text,
+                        password: _passwordController.text,
+                        phoneNumber: _phoneNumberController.text,
+                      );
+
+                      // Panggil service untuk register
+                      await AuthService.register(registerRequest);
+
+                      // Tutup dialog loading
+                      Navigator.pop(context);
+
+                      // Tampilkan dialog sukses
+                      _showSuccessDialog();
+                    } catch (e) {
+                      // Tutup dialog loading
+                      Navigator.pop(context);
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Registrasi gagal: $e')),
+                      );
+                    }
                   }
                 },
+              ),
+            ),
+            _gap(),
+            RichText(
+              text: TextSpan(
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.white),
+                children: [
+                  const TextSpan(text: "Already have an account? "),
+                  WidgetSpan(
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.pushReplacementNamed(context, '/login');
+                      },
+                      child: const Text(
+                        'Login',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -156,14 +253,23 @@ class __RegisterFormState extends State<_RegisterForm> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, String hint, IconData icon, bool isEmail) {
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label,
+    String hint,
+    IconData icon,
+    bool isEmail,
+  ) {
     return TextFormField(
       controller: controller,
       validator: (value) {
         if (value == null || value.isEmpty) {
           return 'Please enter your $label';
         }
-        if (isEmail && !RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(value)) {
+        if (isEmail &&
+            !RegExp(
+              r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+            ).hasMatch(value)) {
           return 'Please enter a valid email';
         }
         return null;
@@ -180,7 +286,11 @@ class __RegisterFormState extends State<_RegisterForm> {
     );
   }
 
-  Widget _buildPasswordField(TextEditingController controller, String label, {bool isConfirm = false}) {
+  Widget _buildPasswordField(
+    TextEditingController controller,
+    String label, {
+    bool isConfirm = false,
+  }) {
     return TextFormField(
       controller: controller,
       validator: (value) {
