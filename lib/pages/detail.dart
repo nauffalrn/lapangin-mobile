@@ -305,22 +305,6 @@ Future<void> _createBooking() async {
       barrierDismissible: false,
       builder: (context) => Center(child: CircularProgressIndicator()),
     );
-    
-    // Check for valid token before proceeding
-    final token = await AuthService.ensureFreshToken();
-    if (token == null) {
-      // Close loading dialog
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sesi anda habis. Silakan login kembali'))
-      );
-      
-      Navigator.pushReplacementNamed(context, '/login');
-      return;
-    }
 
     // Create jadwalItems from selected slots
     List<JadwalItem> jadwalItems = [];
@@ -353,6 +337,10 @@ Future<void> _createBooking() async {
       kodePromo: null,
     );
     
+    print("Creating booking for lapangan ID: ${booking.lapanganId}");
+    print("Date: ${booking.tanggal}");
+    print("Time slots: ${jadwalItems.length} slots");
+    
     // Create the booking with direct token handling
     final result = await BookingService.createBooking(booking);
 
@@ -381,6 +369,8 @@ Future<void> _createBooking() async {
     }
 
     String errorMessage = e.toString().toLowerCase();
+    
+    print("Booking error: $errorMessage");
     
     // Check for different authentication error patterns
     if (errorMessage.contains('login') || 

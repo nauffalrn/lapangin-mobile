@@ -10,23 +10,31 @@ import 'services/auth_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inisialisasi AuthService untuk mendapatkan token
+  // Initial auth check
+  bool isLoggedIn = false;
   try {
-    await AuthService.getToken();
+    final token = await AuthService.ensureFreshToken();
+    isLoggedIn = token != null;
+    print("User is logged in: $isLoggedIn");
   } catch (e) {
     print("Error initializing auth: $e");
+    // Clear any potentially corrupted tokens
+    await AuthService.logout();
   }
 
-  runApp(MyApp());
+  runApp(MyApp(isLoggedIn: isLoggedIn));
 }
 
 class MyApp extends StatelessWidget {
+  final bool isLoggedIn;
+  
+  const MyApp({Key? key, required this.isLoggedIn}) : super(key: key);
+  
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      initialRoute:
-          '/login', // Default ke login, AuthService.initialize() akan dicek di halaman login
+      initialRoute: isLoggedIn ? '/' : '/login',
       routes: {
         '/login': (context) => const SignInPage2(),
         '/': (context) => HomePage(),

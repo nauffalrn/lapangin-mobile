@@ -27,26 +27,26 @@ class ApiConfig {
   static Future<Map<String, String>> getAuthHeaders() async {
     final token = await AuthService.getToken();
     if (token == null) {
-      print("WARNING: No auth token found!");
+      print("WARNING: getAuthHeaders found no auth token!");
       return {'Content-Type': 'application/json'};
     }
 
-    print("Using auth token: ${token.substring(0, min(10, token.length))}...");
+    print("Using auth token in getAuthHeaders: ${token.substring(0, min(10, token.length))}...");
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
     };
   }
 
-  // Improve the getAuthHeadersWithRefresh method
+  // Use this method instead of the regular getAuthHeaders for critical operations
   static Future<Map<String, String>> getAuthHeadersWithRefresh() async {
-    final token = await AuthService.getTokenWithRefresh();
+    final token = await AuthService.ensureFreshToken(); // This validates the token
     if (token == null || token.isEmpty) {
       print("WARNING: No auth token found after refresh attempt!");
       throw Exception('Not authenticated. Please login first.');
     }
 
-    print("Using auth token: ${token.substring(0, min(10, token.length))}...");
+    print("Using auth token after refresh: ${token.substring(0, min(10, token.length))}...");
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',

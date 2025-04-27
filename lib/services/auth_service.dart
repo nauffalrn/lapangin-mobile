@@ -193,31 +193,45 @@ class AuthService {
         return null;
       }
       
-      // Check if token is valid by making a simple GET request
+      print("Using cached token: ${token.substring(0, min(10, token.length))}...");
+      
+      // Check token validity using your new endpoint
       try {
         print("Checking token validity...");
         final response = await http.get(
-          Uri.parse('${ApiConfig.baseUrl}/profile/check-token'),
+          Uri.parse('${ApiConfig.baseUrl}/api/booking/check-token'),
           headers: {
             'Authorization': 'Bearer $token',
           },
         ).timeout(Duration(seconds: 5));
         
+        print("Token check response: ${response.statusCode}");
+        print("Token check body: ${response.body}");
+        
         if (response.statusCode == 200) {
-          print("Token is valid");
-          return token;
-        } else {
-          print("Token is invalid, status: ${response.statusCode}");
-          // Token is invalid, try to reauth
-          final success = await reAuthenticate();
-          if (success) {
-            return getToken();
+          // Parse response to check token validity details
+          final Map<String, dynamic> data = jsonDecode(response.body);
+          
+          if (data['success'] == true && 
+              data['data'] != null && 
+              data['data']['token_valid'] == true) {
+            print("Token is valid");
+            return token;
+          } else {
+            print("Token validation failed: ${data['data']}");
+            // Token invalid, clear and return null
+            await logout();
+            return null;
           }
-          return null;
+        } else {
+          print("Token check failed with status: ${response.statusCode}");
+          // Return existing token anyway - might work
+          return token;
         }
       } catch (e) {
         print("Error checking token: $e");
-        return token; // Return existing token if unable to check
+        // Return existing token if unable to check
+        return token;
       }
     } catch (e) {
       print("Error ensuring fresh token: $e");

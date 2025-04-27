@@ -11,35 +11,39 @@ class SignInPage2 extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isSmallScreen = MediaQuery.of(context).size.width < 600;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(""),
-        backgroundColor: const Color(0xFF0A192F), // Warna gelap
-      ),
-      body: Container(
-        color: const Color(0xFF0A192F), // Latar belakang gelap
-        child: Center(
-          child: SingleChildScrollView(
-            child:
-                isSmallScreen
-                    ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        _Logo(), // Komponen logo
-                        SizedBox(height: 32), // Jarak antara logo dan form
-                        _FormContent(), // Form login
-                      ],
-                    )
-                    : Container(
-                      padding: const EdgeInsets.all(32.0),
-                      constraints: const BoxConstraints(maxWidth: 800),
-                      child: Row(
+    return PopScope(
+      canPop: false, // Prevents back navigation
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(""),
+          backgroundColor: const Color(0xFF0A192F), // Warna gelap
+          automaticallyImplyLeading: false, // This removes the back button
+        ),
+        body: Container(
+          color: const Color(0xFF0A192F), // Latar belakang gelap
+          child: Center(
+            child: SingleChildScrollView(
+              child:
+                  isSmallScreen
+                      ? Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: const [
-                          Expanded(child: _Logo()),
-                          Expanded(child: Center(child: _FormContent())),
+                          _Logo(), // Komponen logo
+                          SizedBox(height: 32), // Jarak antara logo dan form
+                          _FormContent(), // Form login
                         ],
+                      )
+                      : Container(
+                        padding: const EdgeInsets.all(32.0),
+                        constraints: const BoxConstraints(maxWidth: 800),
+                        child: Row(
+                          children: const [
+                            Expanded(child: _Logo()),
+                            Expanded(child: Center(child: _FormContent())),
+                          ],
+                        ),
                       ),
-                    ),
+            ),
           ),
         ),
       ),

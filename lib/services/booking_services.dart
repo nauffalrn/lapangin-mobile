@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -21,9 +22,8 @@ class BookingService {
 
   static Future<Booking> createBooking(Booking booking) async {
     try {
-      // Get a fresh token directly to ensure it's valid
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
+      // Use ensureFreshToken instead of directly getting from SharedPreferences
+      final token = await AuthService.ensureFreshToken();
       
       if (token == null || token.isEmpty) {
         throw Exception('Authentication token not found. Please login again.');
@@ -34,10 +34,8 @@ class BookingService {
       print("Request URL: ${ApiConfig.baseUrl}/api/booking/create");
       print("Request body: ${jsonEncode(booking.toJson())}");
       
-      // Make sure URL is correct - remove /api if it's already in the baseUrl
-      final String url = ApiConfig.baseUrl.endsWith('/api') 
-          ? '${ApiConfig.baseUrl}/booking/create'
-          : '${ApiConfig.baseUrl}/api/booking/create';
+      // Always use the full path with /api prefix to be consistent
+      final String url = '${ApiConfig.baseUrl}/api/booking/create';
       
       final response = await http.post(
         Uri.parse(url),
@@ -47,6 +45,9 @@ class BookingService {
           'Accept': 'application/json',
         },
         body: jsonEncode(booking.toJson()),
+      ).timeout(
+        const Duration(seconds: 20),
+        onTimeout: () => throw TimeoutException('Connection timed out. Please try again.'),
       );
 
       print("Booking response status: ${response.statusCode}");
@@ -56,49 +57,76 @@ class BookingService {
         final responseData = jsonDecode(response.body);
         
         // Check for different response formats
-        if (responseData['success'] == true) {
-          // Extract data - could be direct or nested
-          final bookingData = responseData['data'];
-          
-          if (bookingData == null) {
-            throw Exception('Invalid response format: missing data');
-          }
-          
-          // Create booking from response data
-          Booking result;
-          
-          // Handle both cases: bookingData as map or just an ID
-          if (bookingData is int || bookingData is String) {
-            // If only ID returned, create a minimal booking object
-            result = Booking(
-              id: int.parse(bookingData.toString()),
-              lapanganId: booking.lapanganId,
-              tanggal: booking.tanggal,
-              jadwalList: booking.jadwalList,
-            );
+        if (responseData is Map && responseData.containsKey('success')) {
+          if (responseData['success'] == true) {
+            // Extract data - could be direct or nested
+            final bookingData = responseData['data'];
+            
+            if (bookingData == null) {
+              throw Exception('Invalid response format: missing data');
+            }
+            
+            // Create booking from response data
+            Booking result;
+            
+            // Handle both cases: bookingData as map or just an ID
+            if (bookingData is int || bookingData is String) {
+              // If only ID returned, create a minimal booking object
+              result = Booking(
+                id: int.parse(bookingData.toString()),
+                lapanganId: booking.lapanganId,
+                tanggal: booking.tanggal,
+                jadwalList: booking.jadwalList,
+              );
+            } else {
+              // Full booking object returned
+              result = Booking.fromJson(bookingData);
+            }
+            
+            // If waktu field is not set from API, create it from jadwalList
+            if (result.waktu == null && result.jadwalList.isNotEmpty) {
+              // Sort jadwalList by time
+              List<JadwalItem> sortedJadwal = List.from(result.jadwalList);
+              sortedJadwal.sort((a, b) => a.jam.compareTo(b.jam));
+              
+              // Create formatted time string (e.g., "09:00, 10:00, 11:00")
+              List<String> timeSlots = sortedJadwal.map((item) => 
+                "${item.jam.toString().padLeft(2, '0')}:00"
+              ).toList();
+              
+              // Set the waktu field
+              result.waktu = timeSlots.join(", ");
+            }
+            
+            return result;
           } else {
-            // Full booking object returned
-            result = Booking.fromJson(bookingData);
+            throw Exception(responseData['message'] ?? 'Booking creation failed');
           }
-          
-          // If waktu field is not set from API, create it from jadwalList
-          if (result.waktu == null && result.jadwalList != null && result.jadwalList!.isNotEmpty) {
-            // Sort jadwalList by time
-            List<JadwalItem> sortedJadwal = List.from(result.jadwalList!);
-            sortedJadwal.sort((a, b) => a.jam!.compareTo(b.jam!));
-            
-            // Create formatted time string (e.g., "09:00, 10:00, 11:00")
-            List<String> timeSlots = sortedJadwal.map((item) => 
-              "${item.jam.toString().padLeft(2, '0')}:00"
-            ).toList();
-            
-            // Set the waktu field
-            result.waktu = timeSlots.join(", ");
-          }
-          
-          return result;
         } else {
-          throw Exception(responseData['message'] ?? 'Booking creation failed');
+          // Direct response (no success field)
+          try {
+            final result = Booking.fromJson(responseData);
+            
+            // If waktu field is not set from API, create it from jadwalList
+            if (result.waktu == null && result.jadwalList.isNotEmpty) {
+              // Sort jadwalList by time
+              List<JadwalItem> sortedJadwal = List.from(result.jadwalList);
+              sortedJadwal.sort((a, b) => a.jam.compareTo(b.jam));
+              
+              // Create formatted time string (e.g., "09:00, 10:00, 11:00")
+              List<String> timeSlots = sortedJadwal.map((item) => 
+                "${item.jam.toString().padLeft(2, '0')}:00"
+              ).toList();
+              
+              // Set the waktu field
+              result.waktu = timeSlots.join(", ");
+            }
+            
+            return result;
+          } catch (e) {
+            print("Error parsing booking: $e");
+            throw Exception('Failed to parse booking data: $e');
+          }
         }
       } else if (response.statusCode == 401) {
         throw Exception('Session expired. Please login again.');
