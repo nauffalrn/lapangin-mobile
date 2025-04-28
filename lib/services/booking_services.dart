@@ -24,51 +24,59 @@ class BookingService {
     try {
       // Use ensureFreshToken instead of directly getting from SharedPreferences
       final token = await AuthService.ensureFreshToken();
-      
+
       if (token == null || token.isEmpty) {
         throw Exception('Authentication token not found. Please login again.');
       }
-      
+
       // Debug logging
-      print("Creating booking with token: ${token.substring(0, min(10, token.length))}...");
+      print(
+        "Creating booking with token: ${token.substring(0, min(10, token.length))}...",
+      );
       print("Request URL: ${ApiConfig.baseUrl}/api/booking/create");
       print("Request body: ${jsonEncode(booking.toJson())}");
-      
+
       // Always use the full path with /api prefix to be consistent
       final String url = '${ApiConfig.baseUrl}/api/booking/create';
-      
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode(booking.toJson()),
-      ).timeout(
-        const Duration(seconds: 20),
-        onTimeout: () => throw TimeoutException('Connection timed out. Please try again.'),
-      );
+
+      final response = await http
+          .post(
+            Uri.parse(url),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode(booking.toJson()),
+          )
+          .timeout(
+            const Duration(seconds: 20),
+            onTimeout:
+                () =>
+                    throw TimeoutException(
+                      'Connection timed out. Please try again.',
+                    ),
+          );
 
       print("Booking response status: ${response.statusCode}");
       print("Booking response body: ${response.body}");
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-        
+
         // Check for different response formats
         if (responseData is Map && responseData.containsKey('success')) {
           if (responseData['success'] == true) {
             // Extract data - could be direct or nested
             final bookingData = responseData['data'];
-            
+
             if (bookingData == null) {
               throw Exception('Invalid response format: missing data');
             }
-            
+
             // Create booking from response data
             Booking result;
-            
+
             // Handle both cases: bookingData as map or just an ID
             if (bookingData is int || bookingData is String) {
               // If only ID returned, create a minimal booking object
@@ -82,46 +90,54 @@ class BookingService {
               // Full booking object returned
               result = Booking.fromJson(bookingData);
             }
-            
+
             // If waktu field is not set from API, create it from jadwalList
             if (result.waktu == null && result.jadwalList.isNotEmpty) {
               // Sort jadwalList by time
               List<JadwalItem> sortedJadwal = List.from(result.jadwalList);
               sortedJadwal.sort((a, b) => a.jam.compareTo(b.jam));
-              
+
               // Create formatted time string (e.g., "09:00, 10:00, 11:00")
-              List<String> timeSlots = sortedJadwal.map((item) => 
-                "${item.jam.toString().padLeft(2, '0')}:00"
-              ).toList();
-              
+              List<String> timeSlots =
+                  sortedJadwal
+                      .map(
+                        (item) => "${item.jam.toString().padLeft(2, '0')}:00",
+                      )
+                      .toList();
+
               // Set the waktu field
               result.waktu = timeSlots.join(", ");
             }
-            
+
             return result;
           } else {
-            throw Exception(responseData['message'] ?? 'Booking creation failed');
+            throw Exception(
+              responseData['message'] ?? 'Booking creation failed',
+            );
           }
         } else {
           // Direct response (no success field)
           try {
             final result = Booking.fromJson(responseData);
-            
+
             // If waktu field is not set from API, create it from jadwalList
             if (result.waktu == null && result.jadwalList.isNotEmpty) {
               // Sort jadwalList by time
               List<JadwalItem> sortedJadwal = List.from(result.jadwalList);
               sortedJadwal.sort((a, b) => a.jam.compareTo(b.jam));
-              
+
               // Create formatted time string (e.g., "09:00, 10:00, 11:00")
-              List<String> timeSlots = sortedJadwal.map((item) => 
-                "${item.jam.toString().padLeft(2, '0')}:00"
-              ).toList();
-              
+              List<String> timeSlots =
+                  sortedJadwal
+                      .map(
+                        (item) => "${item.jam.toString().padLeft(2, '0')}:00",
+                      )
+                      .toList();
+
               // Set the waktu field
               result.waktu = timeSlots.join(", ");
             }
-            
+
             return result;
           } catch (e) {
             print("Error parsing booking: $e");
@@ -131,7 +147,9 @@ class BookingService {
       } else if (response.statusCode == 401) {
         throw Exception('Session expired. Please login again.');
       } else {
-        throw Exception('Failed to create booking: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Failed to create booking: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
       print("Error creating booking: $e");
@@ -142,54 +160,42 @@ class BookingService {
   // Modifikasi fungsi getBookingHistory
   static Future<List<Booking>> getBookingHistory() async {
     try {
-      // Get token directly, don't use the refresh method
+      // Check if user is logged in first
       final token = await AuthService.getToken();
-
       if (token == null || token.isEmpty) {
         print("No token available for booking history");
-        return [];
+        throw Exception('Anda harus login terlebih dahulu');
       }
 
-      final headers = {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      };
-
-      print("Mengambil riwayat booking: ${ApiConfig.baseUrl}/booking/history");
-      print("Headers: $headers");
-      print("Token being used: $token");
-
+      // Use AuthHeadersWithRefresh instead of regular headers to ensure token is fresh
       final response = await http.get(
         Uri.parse('${ApiConfig.baseUrl}/booking/history'),
-        headers: headers,
+        headers: await ApiConfig.getAuthHeadersWithRefresh(),
       );
 
-      print("Response status history: ${response.statusCode}");
-      print("Response body history: ${response.body}");
-
       if (response.statusCode == 200) {
-        // Handle response format
-        var responseData = jsonDecode(response.body);
-        List<dynamic> data;
+        final Map<String, dynamic> data = json.decode(response.body);
 
-        if (responseData is Map && responseData.containsKey('data')) {
-          data = responseData['data'];
-        } else if (responseData is List) {
-          data = responseData;
+        // Debug the response
+        print(
+          "Booking history response: ${response.body.substring(0, min(100, response.body.length))}...",
+        );
+
+        if (data['success'] == true && data['data'] != null) {
+          List<dynamic> bookings = data['data'];
+          return bookings.map((item) => Booking.fromJson(item)).toList();
         } else {
-          print("Unexpected data format: $responseData");
+          print("API returned success=false or no data: ${data['message']}");
           return [];
         }
-
-        return data.map((json) => Booking.fromJson(json)).toList();
       } else {
-        print("Error status code: ${response.statusCode}");
-        return [];
+        print("Error fetching booking history. Status: ${response.statusCode}");
+        print("Error body: ${response.body}");
+        throw Exception('Failed to load booking history');
       }
     } catch (e) {
-      print("Error mengambil riwayat booking: $e");
-      // Return empty instead of throwing
-      return [];
+      print("Exception in getBookingHistory: $e");
+      throw e;
     }
   }
 

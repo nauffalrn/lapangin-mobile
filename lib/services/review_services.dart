@@ -7,30 +7,34 @@ class ReviewService {
   // Fetch reviews for a specific venue
   static Future<List<Review>> getReviewsByLapanganId(int lapanganId) async {
     try {
-      // Debug
       print("Fetching reviews for lapangan ID: $lapanganId");
-      
-      // Make sure this path matches your ReviewApiController endpoint
-      final url = '${ApiConfig.baseUrl}/review/$lapanganId';
+
+      // Use the method from ApiConfig instead of constructing URL manually
+      final url = ApiConfig.getReviewsUrl(lapanganId);
       print("URL: $url");
-      
+
       // Add timeout to prevent infinite loading
-      final response = await http.get(
-        Uri.parse(url),
-        headers: await ApiConfig.getAuthHeaders(), // Use auth headers if needed
-      ).timeout(Duration(seconds: 10));
-      
+      final response = await http
+          .get(
+            Uri.parse(url),
+            headers:
+                await ApiConfig.getAuthHeaders(), // Use auth headers if needed
+          )
+          .timeout(Duration(seconds: 10));
+
       // Debug
       print("Response status: ${response.statusCode}");
-      
+
       if (response.statusCode == 200) {
         if (response.body.isEmpty) {
           print("Response body is empty");
           return [];
         }
-        
-        print("Response body: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}...");
-        
+
+        print(
+          "Response body: ${response.body.substring(0, response.body.length > 100 ? 100 : response.body.length)}...",
+        );
+
         try {
           List<dynamic> jsonList = jsonDecode(response.body);
           return jsonList.map((json) => Review.fromJson(json)).toList();
@@ -49,24 +53,27 @@ class ReviewService {
       return [];
     }
   }
-  
+
   // Submit a review (optional - if you need this functionality)
   static Future<void> submitReview({
     required int lapanganId,
+    required int bookingId, // Add this parameter
     required double rating,
     required String comment,
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/review'),
+        Uri.parse(ApiConfig.getAddReviewUrl()), // Use your config method
         headers: await ApiConfig.getAuthHeaders(),
         body: jsonEncode({
-          'lapanganId': lapanganId,
+          'lapangan': {'id': lapanganId},
+          'booking': {'id': bookingId},
           'rating': rating,
-          'comment': comment,
+          'komentar': comment, // Changed from 'comment' to 'komentar'
+          'tanggalReview': DateTime.now().toIso8601String(),
         }),
       );
-      
+
       if (response.statusCode != 200) {
         throw Exception('Failed to submit review: ${response.statusCode}');
       }

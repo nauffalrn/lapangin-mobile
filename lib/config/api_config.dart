@@ -4,7 +4,7 @@ import 'dart:math';
 
 class ApiConfig {
   // Jika dijalankan di perangkat fisik
-  static const baseUrl = "http://192.168.153.186:8181/api";
+  static const baseUrl = "http://192.168.1.11:8181/api";
 
   // Perbaikan URL gambar - mencoba URL alternatif
   static String getImageUrl(String? imagePath) {
@@ -31,7 +31,9 @@ class ApiConfig {
       return {'Content-Type': 'application/json'};
     }
 
-    print("Using auth token in getAuthHeaders: ${token.substring(0, min(10, token.length))}...");
+    print(
+      "Using auth token in getAuthHeaders: ${token.substring(0, min(10, token.length))}...",
+    );
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
@@ -40,16 +42,29 @@ class ApiConfig {
 
   // Use this method instead of the regular getAuthHeaders for critical operations
   static Future<Map<String, String>> getAuthHeadersWithRefresh() async {
-    final token = await AuthService.ensureFreshToken(); // This validates the token
+    final token =
+        await AuthService.ensureFreshToken(); // This validates the token
     if (token == null || token.isEmpty) {
       print("WARNING: No auth token found after refresh attempt!");
       throw Exception('Not authenticated. Please login first.');
     }
 
-    print("Using auth token after refresh: ${token.substring(0, min(10, token.length))}...");
+    print(
+      "Using auth token after refresh: ${token.substring(0, min(10, token.length))}...",
+    );
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
     };
+  }
+
+  // Method to fetch reviews for a specific lapangan
+  static String getReviewsUrl(int lapanganId) {
+    return "$baseUrl/booking/reviews/$lapanganId";
+  }
+
+  // Method to post a new review
+  static String getAddReviewUrl() {
+    return "$baseUrl/review";
   }
 }
