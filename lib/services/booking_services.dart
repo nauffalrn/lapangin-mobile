@@ -157,44 +157,101 @@ class BookingService {
     }
   }
 
-  // Modifikasi fungsi getBookingHistory
+  // Perbaikan fungsi getBookingHistory
   static Future<List<Booking>> getBookingHistory() async {
     try {
-      // Check if user is logged in first
+      print("Mengambil riwayat booking...");
+
+      // Pastikan token valid
       final token = await AuthService.getToken();
       if (token == null || token.isEmpty) {
-        print("No token available for booking history");
-        throw Exception('Anda harus login terlebih dahulu');
+        throw Exception('Silakan login terlebih dahulu');
       }
 
-      // Use AuthHeadersWithRefresh instead of regular headers to ensure token is fresh
+      // Gunakan path yang benar
+      final url = '${ApiConfig.baseUrl}/booking/history';
+
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/booking/history'),
-        headers: await ApiConfig.getAuthHeadersWithRefresh(),
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
+
+      print("Status response history: ${response.statusCode}");
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
 
-        // Debug the response
-        print(
-          "Booking history response: ${response.body.substring(0, min(100, response.body.length))}...",
-        );
-
         if (data['success'] == true && data['data'] != null) {
-          List<dynamic> bookings = data['data'];
-          return bookings.map((item) => Booking.fromJson(item)).toList();
+          List<dynamic> bookingsData = data['data'];
+          print("Berhasil mengambil ${bookingsData.length} booking");
+
+          // Detail log untuk setiap booking
+          for (int i = 0; i < bookingsData.length; i++) {
+            print("===== BOOKING ${i + 1} =====");
+            print("ID: ${bookingsData[i]['id']}");
+
+            // Check lapangan object structure
+            if (bookingsData[i]['lapangan'] != null) {
+              print(
+                "Lapangan type: ${bookingsData[i]['lapangan'].runtimeType}",
+              );
+
+              if (bookingsData[i]['lapangan'] is Map) {
+                Map<String, dynamic> lapanganData = bookingsData[i]['lapangan'];
+                print("  Lapangan data keys: ${lapanganData.keys.toList()}");
+                print(
+                  "  Lapangan nama: ${lapanganData['nama'] ?? lapanganData['namaLapangan'] ?? 'null'}",
+                );
+                print("  Lapangan alamat: ${lapanganData['alamat'] ?? 'null'}");
+              }
+            } else {
+              print("Lapangan field is null");
+            }
+
+            // Check if there's a direct lokasi field
+            print(
+              "Direct lokasi field: ${bookingsData[i]['lokasi'] ?? 'null'}",
+            );
+            print(
+              "Direct alamat field: ${bookingsData[i]['alamat'] ?? 'null'}",
+            );
+          }
+
+          // Lanjutkan dengan kode asli
+          List<Booking> bookings = [];
+          for (var item in bookingsData) {
+            try {
+              // Log alamat dari data lapangan
+              if (item['lapangan'] != null && item['lapangan'] is Map) {
+                var lapanganMap = item['lapangan'] as Map<String, dynamic>;
+                print("Alamat lapangan dari API: ${lapanganMap['alamat']}");
+              }
+
+              // Pastikan mempertahankan seluruh struktur data lapangan
+              var processedItem = _preprocessBookingData(item);
+              bookings.add(Booking.fromJson(processedItem));
+            } catch (e) {
+              print("Error processing booking item: $e");
+            }
+          }
+
+          return bookings;
         } else {
-          print("API returned success=false or no data: ${data['message']}");
+          print("API mengembalikan success=false atau data kosong");
           return [];
         }
+      } else if (response.statusCode == 401) {
+        print("Token tidak valid: ${response.body}");
+        throw Exception('Sesi Anda telah berakhir. Silakan login kembali.');
       } else {
-        print("Error fetching booking history. Status: ${response.statusCode}");
-        print("Error body: ${response.body}");
-        throw Exception('Failed to load booking history');
+        print("Error status: ${response.statusCode}, body: ${response.body}");
+        return [];
       }
     } catch (e) {
-      print("Exception in getBookingHistory: $e");
+      print("Exception dalam getBookingHistory: $e");
       throw e;
     }
   }
@@ -271,5 +328,117 @@ class BookingService {
     } else {
       throw Exception('Gagal mengunggah bukti pembayaran: ${response.body}');
     }
+  }
+
+  // Tambahkan metode ini ke class BookingService:
+
+  static Future<bool> submitReview(
+    int bookingId,
+    int rating,
+    String comment,
+  ) async {
+    try {
+      final token = await AuthService.getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('Anda harus login terlebih dahulu');
+      }
+
+      print("Submitting review for booking $bookingId with rating $rating");
+      print("Comment: $comment");
+
+      // Sesuaikan dengan endpoint yang benar dari backend
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/booking/review'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'bookingId': bookingId,
+          'rating': rating,
+          'komentar': comment,
+        }),
+      );
+
+      print("Review submission response: ${response.statusCode}");
+      print("Response body: ${response.body}");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['success'] == true;
+      } else {
+        throw Exception(
+          'Failed to submit review: ${response.statusCode} - ${response.body}',
+        );
+      }
+    } catch (e) {
+      print("Error submitting review: $e");
+      throw e;
+    }
+  }
+
+  // Tambahkan fungsi helper untuk mentransformasi data respons API
+
+  // Tambahkan fungsi ini di class BookingService
+  static Map<String, dynamic> _preprocessBookingData(
+    Map<String, dynamic> rawData,
+  ) {
+    Map<String, dynamic> processed = Map.from(rawData);
+
+    // Pastikan objek lapangan tetap dipertahankan jika ada
+    if (processed['lapangan'] != null && processed['lapangan'] is Map) {
+      // Objek lapangan sudah ada, jangan diubah
+    }
+    // Jika lapangan hanya berupa ID, kita perlu cek apakah bisa mendapatkan data lapangan
+    else if (processed['lapanganId'] != null ||
+        (processed['lapangan'] != null && processed['lapangan'] is! Map)) {
+      // Untuk backend bisa diimplementasikan nanti
+      // Di sini hanya set struktur dasar lapangan
+      int lapanganId = processed['lapanganId'] ?? processed['lapangan'];
+      processed['lapangan'] = {
+        'id': lapanganId,
+        'namaLapangan': processed['namaLapangan'],
+        'alamat': processed['alamat'] ?? "Alamat tidak tersedia",
+      };
+    }
+
+    // Format tanggal jika berupa ISO DateTime
+    if (processed['bookingDate'] != null) {
+      try {
+        String rawDate = processed['bookingDate'].toString();
+        if (rawDate.contains(' ')) {
+          String dateOnly = rawDate.split(' ')[0];
+          var dateParts = dateOnly.split(' ');
+          if (dateParts.length == 3) {
+            final months = [
+              'Januari',
+              'Februari',
+              'Maret',
+              'April',
+              'Mei',
+              'Juni',
+              'Juli',
+              'Agustus',
+              'September',
+              'Oktober',
+              'November',
+              'Desember',
+            ];
+
+            int year = int.parse(dateParts[0]);
+            int month = int.parse(dateParts[1]);
+            int day = int.parse(dateParts[2]);
+
+            processed['tanggal'] = "$day-${months[month - 1]}-$year";
+          } else {
+            processed['tanggal'] = dateOnly;
+          }
+        }
+      } catch (e) {
+        print("Error processing date: $e");
+      }
+    }
+
+    return processed;
   }
 }

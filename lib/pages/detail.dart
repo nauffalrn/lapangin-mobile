@@ -333,8 +333,7 @@ Future<void> _createBooking() async {
     final booking = Booking(
       lapanganId: widget.lapangan.id,
       tanggal: DateFormat('yyyy-MM-dd').format(selectedDate!),
-      jadwalList: jadwalItems,
-      kodePromo: null,
+      jadwalList: jadwalItems
     );
     
     print("Creating booking for lapangan ID: ${booking.lapanganId}");

@@ -103,14 +103,6 @@ class _PembayaranPageState extends State<PembayaranPage> {
                     // Display the number of hours
                     if (widget.booking.waktu != null) 
                       Text("Jumlah Jam: ${widget.booking.waktu!.split(',').length}"),
-                    
-                    Text(
-                      "Total: Rp${widget.booking.totalHarga?.toStringAsFixed(0) ?? '0'}",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
                   ],
                 ),
               ),

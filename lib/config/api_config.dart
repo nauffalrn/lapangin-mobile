@@ -27,16 +27,22 @@ class ApiConfig {
   static Future<Map<String, String>> getAuthHeaders() async {
     final token = await AuthService.getToken();
     if (token == null) {
+      // Untuk debugging
       print("WARNING: getAuthHeaders found no auth token!");
+      // Kembalikan header tanpa token
       return {'Content-Type': 'application/json'};
     }
 
+    // Untuk debugging
     print(
       "Using auth token in getAuthHeaders: ${token.substring(0, min(10, token.length))}...",
     );
+
+    // Tambahkan Accept header
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
+      'Accept': 'application/json',
     };
   }
 

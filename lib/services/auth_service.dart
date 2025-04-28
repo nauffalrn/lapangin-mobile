@@ -10,10 +10,17 @@ class AuthService {
   static String? _token;
 
   static Future<String?> getToken() async {
-    if (_token != null) return _token;
+    if (_token != null && _token!.isNotEmpty) return _token;
 
     final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('auth_token');
+    final token = prefs.getString('auth_token');
+
+    if (token == null || token.isEmpty) {
+      print("No token found in SharedPreferences");
+      return null;
+    }
+
+    _token = token;
     return _token;
   }
 
@@ -85,58 +92,49 @@ class AuthService {
     }
   }
 
+  // Ganti seluruh metode login dengan kode berikut:
   static Future<void> login(LoginRequest loginRequest) async {
     try {
-      // Debug logging
-      print("Login attempt for user: ${loginRequest.username}");
-      print("API URL: ${ApiConfig.baseUrl}/auth/login");
-      
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/auth/login'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'username': loginRequest.username,
-          'password': loginRequest.password,
-        }),
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () => throw TimeoutException('Connection timed out'),
+        body: jsonEncode(loginRequest.toJson()),
       );
 
-      print("Response status code: ${response.statusCode}");
-      print("Response body: ${response.body}");
-
-      // Check response size before processing
-      if (response.contentLength != null && response.contentLength! > 10 * 1024 * 1024) {
-        throw Exception('Response too large (${response.contentLength! ~/ (1024 * 1024)} MB)');
-      }
+      print("Login response status: ${response.statusCode}");
+      print("Login response body: ${response.body}");
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        
-        // Save user data based on your Customer model structure
-        final prefs = await SharedPreferences.getInstance();
-        
-        // Store all user fields from your Customer model
-        if (data.containsKey('data') && data['data'] != null) {
-          var userData = data['data'];
-          prefs.setString('auth_token', userData['token'] ?? '');
-          prefs.setString('user_id', userData['id']?.toString() ?? '');
-          prefs.setString('username', userData['username'] ?? '');
-          prefs.setString('name', userData['name'] ?? '');
-          prefs.setString('email', userData['email'] ?? '');
-          prefs.setString('phone_number', userData['phoneNumber'] ?? '');
-          prefs.setString('profile_image', userData['profileImage'] ?? '');
+        final data = json.decode(response.body);
+
+        if (data['success'] == true && data['data'] != null) {
+          // Debug log untuk melihat respon lengkap
+          print("Login response data: ${data['data']}");
+
+          // Token dalam format baru
+          final responseData = data['data'];
+          final token = responseData['token'];
+          if (token == null) {
+            print("Token tidak ditemukan dalam respon");
+            throw Exception('Token tidak ditemukan dalam respon');
+          }
+
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('auth_token', token);
+          await prefs.setString('username', loginRequest.username);
+
+          _token = token;
+          print(
+            'Token disimpan: ${_token!.substring(0, min(10, _token!.length))}...',
+          );
+        } else {
+          throw Exception(data['message'] ?? 'Login gagal');
         }
-        
-        return;
-      } else if (response.statusCode == 401) {
-        throw Exception('Invalid username or password');
       } else {
-        throw Exception('Authentication failed with status: ${response.statusCode}');
+        throw Exception('Login gagal: ${response.statusCode}');
       }
     } catch (e) {
-      print("Login exception: $e");
+      print("Error during login: $e");
       throw e;
     }
   }
@@ -187,33 +185,35 @@ class AuthService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
-      
+
       if (token == null || token.isEmpty) {
         print("No token found, need to login");
         return null;
       }
-      
-      print("Using cached token: ${token.substring(0, min(10, token.length))}...");
-      
+
+      print(
+        "Using cached token: ${token.substring(0, min(10, token.length))}...",
+      );
+
       // Check token validity using your new endpoint
       try {
         print("Checking token validity...");
-        final response = await http.get(
-          Uri.parse('${ApiConfig.baseUrl}/api/booking/check-token'),
-          headers: {
-            'Authorization': 'Bearer $token',
-          },
-        ).timeout(Duration(seconds: 5));
-        
+        final response = await http
+            .get(
+              Uri.parse('${ApiConfig.baseUrl}/api/booking/check-token'),
+              headers: {'Authorization': 'Bearer $token'},
+            )
+            .timeout(Duration(seconds: 5));
+
         print("Token check response: ${response.statusCode}");
         print("Token check body: ${response.body}");
-        
+
         if (response.statusCode == 200) {
           // Parse response to check token validity details
           final Map<String, dynamic> data = jsonDecode(response.body);
-          
-          if (data['success'] == true && 
-              data['data'] != null && 
+
+          if (data['success'] == true &&
+              data['data'] != null &&
               data['data']['token_valid'] == true) {
             print("Token is valid");
             return token;
