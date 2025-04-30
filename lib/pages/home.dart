@@ -7,6 +7,8 @@ import '../models/lapangan_model.dart';
 import '../services/auth_service.dart';
 import '../config/api_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/promo_service.dart';
+import '../models/promo_model.dart';
 
 class HomePage extends StatefulWidget {
   @override
@@ -18,6 +20,11 @@ class _HomePageState extends State<HomePage> {
   List<Lapangan> _filteredLapanganList = [];
   bool _isLoading = false;
   int jumlahTampil = 4;
+  
+  // Tambahkan variabel untuk promo
+  List<Promo> _availablePromos = [];
+  bool _isLoadingPromos = false;
+  Set<int> _claimedPromoIds = {};
 
   String _searchQuery = '';
   final _searchController = TextEditingController();
@@ -26,6 +33,8 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _fetchLapangan();
+    _fetchPromos();
+    _loadClaimedPromos();
   }
 
   // Tambahkan error handling yang lebih baik di bagian _fetchLapangan()
@@ -50,6 +59,122 @@ class _HomePageState extends State<HomePage> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gagal mengambil data lapangan: $e')),
+      );
+    }
+  }
+  
+  // Method untuk mengambil promo yang tersedia
+  Future<void> _fetchPromos() async {
+    setState(() {
+      _isLoadingPromos = true;
+    });
+    
+    try {
+      final promos = await PromoService.getActivePromos();
+      
+      // Filter hanya promo yang masih valid
+      final validPromos = promos.where((promo) => promo.isValid).toList();
+      
+      setState(() {
+        _availablePromos = validPromos;
+        _isLoadingPromos = false;
+      });
+    } catch (e) {
+      print("Error fetching promos: $e");
+      setState(() {
+        _isLoadingPromos = false;
+      });
+    }
+  }
+  
+  // Method untuk memuat promo yang sudah diklaim
+  Future<void> _loadClaimedPromos() async {
+    // Cek apakah user sudah login
+    final isLoggedIn = await AuthService.isLoggedIn();
+    if (!isLoggedIn) return;
+    
+    try {
+      // Coba ambil promo yang sudah diklaim
+      final claimedPromos = await PromoService.getUserClaimedPromos();
+      
+      // Simpan ID promo yang sudah diklaim
+      setState(() {
+        _claimedPromoIds = claimedPromos.map((promo) => promo.id).toSet();
+      });
+      
+      // Simpan ke SharedPreferences untuk persistensi
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('claimed_promo_ids', 
+        _claimedPromoIds.map((id) => id.toString()).toList());
+    } catch (e) {
+      print("Error loading claimed promos: $e");
+      
+      // Fallback ke data tersimpan lokal
+      final prefs = await SharedPreferences.getInstance();
+      final savedIds = prefs.getStringList('claimed_promo_ids') ?? [];
+      setState(() {
+        _claimedPromoIds = savedIds.map((id) => int.parse(id)).toSet();
+      });
+    }
+  }
+  
+  // Method untuk mengklaim promo
+  Future<void> _claimPromo(Promo promo) async {
+    // Cek apakah user sudah login
+    final isLoggedIn = await AuthService.isLoggedIn();
+    if (!isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Silakan login terlebih dahulu untuk mengklaim promo'))
+      );
+      
+      // Navigasi ke halaman login
+      Navigator.pushNamed(context, '/login');
+      return;
+    }
+    
+    // Tampilkan loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(child: CircularProgressIndicator()),
+    );
+    
+    try {
+      // Klaim promo
+      final success = await PromoService.claimPromo(promo.kodePromo);
+      
+      // Tutup dialog loading
+      Navigator.pop(context);
+      
+      if (success) {
+        // Tambahkan ID promo ke set promo yang sudah diklaim
+        setState(() {
+          _claimedPromoIds.add(promo.id);
+        });
+        
+        // Simpan ke SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setStringList('claimed_promo_ids', 
+          _claimedPromoIds.map((id) => id.toString()).toList());
+        
+        // Tampilkan pesan sukses
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Promo berhasil diklaim! Gunakan saat booking lapangan.'),
+            backgroundColor: Colors.green,
+          )
+        );
+      }
+    } catch (e) {
+      // Tutup dialog loading
+      Navigator.pop(context);
+      
+      // Tampilkan pesan error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengklaim promo: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        )
       );
     }
   }
@@ -453,13 +578,33 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // Ubah method untuk membangun widget promo
   Widget _buildPromoDiscount() {
-    bool promoAlreadyUsed = false;
-
-    if (promoAlreadyUsed) {
-      return const SizedBox.shrink();
+    if (_isLoadingPromos) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16.0),
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        height: 120,
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
-
+    
+    // Filter promo yang belum diklaim
+    final availablePromos = _availablePromos
+        .where((promo) => !_claimedPromoIds.contains(promo.id))
+        .toList();
+    
+    if (availablePromos.isEmpty) {
+      return SizedBox.shrink(); // Tidak tampilkan apa-apa jika tidak ada promo
+    }
+    
+    // Ambil promo pertama yang belum diklaim untuk ditampilkan
+    final promo = availablePromos.first;
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 16.0),
       padding: const EdgeInsets.all(16.0),
@@ -483,7 +628,7 @@ class _HomePageState extends State<HomePage> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
                   "Diskon Spesial! 🎉",
                   style: TextStyle(
@@ -494,11 +639,11 @@ class _HomePageState extends State<HomePage> {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  "Diskon 15% untuk pemesanan pertama Anda",
+                  "Diskon ${promo.diskonPersen.toStringAsFixed(0)}% untuk pemesanan Anda",
                   style: TextStyle(fontSize: 14, color: Colors.white),
                 ),
                 Text(
-                  "Hanya berlaku sekali!",
+                  "Berlaku hingga ${_formatDate(promo.tanggalSelesai)}",
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -509,9 +654,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
-              _usePromoCode();
-            },
+            onPressed: () => _claimPromo(promo),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: Color(0xFF0A192F),
@@ -521,6 +664,15 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
     );
+  }
+  
+  // Helper method untuk format tanggal
+  String _formatDate(DateTime date) {
+    final monthNames = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'
+    ];
+    return "${date.day} ${monthNames[date.month - 1]} ${date.year}";
   }
 
   void _usePromoCode() async {

@@ -31,53 +31,23 @@ class BookingService {
       // Fix the URL
       final String url = '${ApiConfig.baseUrl}/booking/create';
       
-      // DO NOT sort jadwalList to maintain the original order selected by user
-      List<JadwalItem> originalJadwalList = List.from(booking.jadwalList);
-      
-      // Rather than sorting by time which can make it look like a continuous range,
-      // preserve the original selection order but include explicit additional information
-      
-      // Create separate data structures that explicitly show these are individual slots
-      List<Map<String, dynamic>> explicitSlots = originalJadwalList.map((item) => {
-        'jam': item.jam,
-        'waktuMulai': '${item.jam.toString().padLeft(2, '0')}:00',
-        'waktuSelesai': '${(item.jam + 1).toString().padLeft(2, '0')}:00',
-        'waktuLengkap': '${item.jam.toString().padLeft(2, '0')}:00-${(item.jam + 1).toString().padLeft(2, '0')}:00',
-        'harga': item.harga,
-        'durasi': 1, // Each slot is 1 hour
-      }).toList();
-      
-      // Include waktu as a clear array of separate slots, not a comma-joined string
-      List<String> formattedTimes = originalJadwalList.map((item) {
-        return '${item.jam.toString().padLeft(2, '0')}:00-${(item.jam + 1).toString().padLeft(2, '0')}:00';
-      }).toList();
-      
       // Create the booking request payload
       final Map<String, dynamic> requestBody = booking.toJson();
       
-      // Add these additional fields to make it absolutely clear these are separate slots
-      requestBody['explicitTimeSlots'] = explicitSlots;
-      requestBody['formattedTimeSlots'] = formattedTimes;
-      requestBody['waktuArray'] = formattedTimes; // Alternative field name
-      requestBody['isConsecutive'] = false;
-      requestBody['processingMode'] = 'individual_slots';
+      // Include promo code if available
+      if (booking.kodePromo != null && booking.kodePromo!.isNotEmpty) {
+        requestBody['kodePromo'] = booking.kodePromo;
+      }
       
       print("Request URL: $url");
       print("Request body: ${jsonEncode(requestBody)}");
       
-      // Debug logs for clarity
-      print("Sending booking with ${originalJadwalList.length} separate time slots:");
-      for (int i = 0; i < formattedTimes.length; i++) {
-        print("Slot #${i+1}: ${formattedTimes[i]} (jam ${originalJadwalList[i].jam}:00)");
-      }
-
       final response = await http.post(
         Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
-          'X-Booking-Mode': 'individual-slots', // Custom header to indicate booking mode
         },
         body: jsonEncode(requestBody),
       ).timeout(
@@ -144,6 +114,11 @@ class BookingService {
               result.lokasi = booking.lokasi;
             }
 
+            // Di dalam metode createBooking, pastikan totalPrice dipertahankan
+            if (result.totalPrice == null && booking.totalPrice != null) {
+              result.totalPrice = booking.totalPrice;
+            }
+
             return result;
           } else {
             throw Exception(
@@ -179,6 +154,11 @@ class BookingService {
             
             if (result.lokasi == null || result.lokasi!.isEmpty) {
               result.lokasi = booking.lokasi;
+            }
+
+            // Di dalam metode createBooking, pastikan totalPrice dipertahankan
+            if (result.totalPrice == null && booking.totalPrice != null) {
+              result.totalPrice = booking.totalPrice;
             }
 
             return result;

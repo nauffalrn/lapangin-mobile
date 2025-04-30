@@ -39,8 +39,13 @@ class Booking {
   final String? reviewDate;
   final List<JadwalItem> jadwalList;
   final String? status;
-  final double? totalPrice;
+  double? totalPrice;  // Buat mutable agar bisa diubah
   final Map<String, dynamic>? lapanganData;
+  
+  // Tambahan untuk promo
+  String? kodePromo;
+  double? diskonPersen;
+  double? hargaAsli;
 
   Booking({
     this.id,
@@ -57,7 +62,55 @@ class Booking {
     this.status,
     this.totalPrice,
     this.lapanganData,
+    this.kodePromo,
+    this.diskonPersen,
+    this.hargaAsli,
   });
+
+  // Perbaikan method applyPromo
+
+  // Method untuk mengaplikasikan promo ke booking
+  void applyPromo(String kodePromo, double diskonPersen) {
+    this.kodePromo = kodePromo;
+    this.diskonPersen = diskonPersen;
+    
+    if (totalPrice != null) {
+      // Simpan harga asli jika belum ada
+      if (this.hargaAsli == null) {
+        this.hargaAsli = totalPrice;
+      }
+      
+      // PERBAIKAN: Selalu hitung diskon berdasarkan harga asli
+      final double discount = (this.hargaAsli! * diskonPersen) / 100;
+      this.totalPrice = this.hargaAsli! - discount;
+    }
+  }
+
+  // Perbaikan method resetPromo
+
+  // Method untuk mereset promo - pastikan tidak mereset hargaAsli
+  void resetPromo() {
+    if (this.hargaAsli != null) {
+      // Kembalikan total harga ke harga asli
+      this.totalPrice = this.hargaAsli;
+    }
+    
+    // Reset kode promo dan persentase diskon
+    this.kodePromo = null;
+    this.diskonPersen = null;
+    
+    // PENTING: Jangan reset hargaAsli
+    // this.hargaAsli = null; <- HAPUS BARIS INI
+  }
+
+  // Tambahkan method untuk menghitung total harga
+  double calculateTotalPrice() {
+    double total = 0;
+    for (var item in jadwalList) {
+      total += item.harga;
+    }
+    return total;
+  }
 
   // Modifikasi method toJson untuk menambahkan flag dan struktur yang lebih jelas
   Map<String, dynamic> toJson() {
@@ -79,7 +132,7 @@ class Booking {
       return "$startHour:00-$endHour:00";
     }).toList();
 
-    return {
+    Map<String, dynamic> json = {
       'lapanganId': lapanganId,
       'namaLapangan': namaLapangan, 
       'lokasi': lokasi,
@@ -91,6 +144,13 @@ class Booking {
       'isMultipleSlots': jadwalList.length > 1, // Another flag for clarity
       'totalSlots': jadwalList.length // Include total slot count
     };
+    
+    // Tambahkan kode promo jika ada
+    if (kodePromo != null && kodePromo!.isNotEmpty) {
+      json['kodePromo'] = kodePromo;
+    }
+    
+    return json;
   }
 
   factory Booking.fromJson(Map<String, dynamic> json) {

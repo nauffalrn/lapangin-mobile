@@ -22,17 +22,12 @@ class DetailPage extends StatefulWidget {
 
 class _DetailPageState extends State<DetailPage> {
   DateTime? selectedDate;
-  // Remove the single selectedTime variable
-  // String? selectedTime;
-  
-  // Add this new field to track multiple selected time slots
   List<Map<String, dynamic>> _selectedTimeSlots = [];
-  
   double? _distance;
   bool _isLoadingLocation = false;
   bool _isLoadingSlots = false;
-  List<Map<String, dynamic>> _timeSlots =
-      []; // Ubah untuk menyimpan data lengkap slot
+  String? _scheduleError; // Tambahkan variabel yang hilang
+  List<Map<String, dynamic>> _timeSlots = [];
   List<Review> _reviews = [];
   bool _isLoadingReviews = false;
 
@@ -330,12 +325,19 @@ Future<void> _createBooking() async {
     }
 
     // PERBAIKAN: Tambahkan nama lapangan dan lokasi dari widget lapangan
+    // Hitung totalPrice
+    double totalPrice = 0;
+    for (var item in jadwalItems) {
+      totalPrice += item.harga;
+    }
+    
     final booking = Booking(
       lapanganId: widget.lapangan.id,
       namaLapangan: widget.lapangan.nama, // Tambahkan nama lapangan
       lokasi: widget.lapangan.alamat,     // Tambahkan alamat/lokasi
       tanggal: DateFormat('yyyy-MM-dd').format(selectedDate!),
-      jadwalList: jadwalItems
+      jadwalList: jadwalItems,
+      totalPrice: totalPrice  // Tambahkan total price sejak awal
     );
     
     print("Creating booking for lapangan ID: ${booking.lapanganId}");
@@ -626,63 +628,12 @@ Future<void> _createBooking() async {
                       ),
                     ),
                   ),
+                  
                   SizedBox(height: 16),
-                  Text(
-                    "Tanggal dan Jam :",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 4),
-                  Row(
-                    children: [
-                      ElevatedButton(
-                        onPressed: () => _selectDate(context),
-                        child: Text(
-                          selectedDate != null
-                              ? DateFormat('dd MMM yyyy').format(selectedDate!)
-                              : "Pilih Tanggal",
-                        ),
-                      ),
-                      SizedBox(width: 10),
-                      _isLoadingSlots
-                          ? CircularProgressIndicator(strokeWidth: 2)
-                          : Expanded(
-                              child: ElevatedButton(
-                                onPressed: selectedDate == null
-                                    ? null
-                                    : () => _selectTime(context),
-                                child: Text(
-                                  _selectedTimeSlots.isEmpty 
-                                      ? "Pilih Jam" 
-                                      : "${_selectedTimeSlots.length} jam dipilih",
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                    ],
-                  ),
-
-                  if (_selectedTimeSlots.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Jam terpilih: ${_formattedSelectedTimes}",
-                            style: TextStyle(fontSize: 14, color: Colors.blue),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            "Total: Rp${_calculateTotalPrice()}",
-                            style: TextStyle(
-                              fontSize: 16, 
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  
+                  // BAGIAN BOOKING BARU - menggantikan bagian "Tanggal dan Jam" lama
+                  _buildBookingSection(),
+                  
                   SizedBox(height: 16),
                   Text(
                     "Deskripsi:",
@@ -726,26 +677,9 @@ Future<void> _createBooking() async {
                           ))
                           .toList(),
                       ),
-                        
-                  // Booking button
-                  Center(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 12,
-                        ),
-                      ),
-                      onPressed: selectedDate != null && _selectedTimeSlots.isNotEmpty
-                        ? _createBooking
-                        : null,
-                      child: Text(
-                        "Pesan Sekarang",
-                        style: TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                    ),
-                  ),
+                      
+                  // Tombol booking lama dihapus
+                  SizedBox(height: 20),
                 ],
               ),
             ),
@@ -801,6 +735,244 @@ Future<void> _createBooking() async {
           ),
         ],
       ),
+    );
+  }
+
+  // Pindahkan _buildBookingSection ke dalam kelas
+  Widget _buildBookingSection() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Booking",
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 16),
+            
+            // Tanggal
+            Text(
+              "Pilih Tanggal:",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 8),
+            InkWell(
+              onTap: () => _selectDate(context),
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      selectedDate == null
+                          ? "Pilih Tanggal"
+                          : "${DateFormat('dd MMMM yyyy').format(selectedDate!)}",
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    Icon(Icons.calendar_today),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
+            
+            // Jadwal
+            Text(
+              "Pilih Jam:",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 8),
+            _isLoadingSlots
+                ? Center(child: CircularProgressIndicator())
+                : _scheduleError != null
+                    ? Center(
+                        child: Text(
+                          _scheduleError!,
+                          style: TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    : _buildTimeSlotGrid(),
+            
+            SizedBox(height: 16),
+            
+            // Jadwal terpilih dan total harga
+            _buildSelectedTimeAndTotalPrice(),
+            
+            SizedBox(height: 16),
+            
+            // Tombol booking
+            Container(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: (_selectedTimeSlots.isEmpty || selectedDate == null)
+                    ? null
+                    : _createBooking,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF0A192F),
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: Text(
+                  "Book Sekarang",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Tambahkan metode untuk menampilkan grid waktu yang terlewat
+  Widget _buildTimeSlotGrid() {
+    // Implementasi sesuai kebutuhan, misalnya:
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 2.5,
+      ),
+      itemCount: _timeSlots.length,
+      itemBuilder: (context, index) {
+        final slot = _timeSlots[index];
+        final bool isPast = slot['isPast'] ?? false;
+        final bool isAvailable = slot['isAvailable'] ?? true;
+        
+        // Check if this slot is selected
+        final bool isSelected = _selectedTimeSlots.any(
+          (selectedSlot) => selectedSlot['waktu'] == slot['waktu']
+        );
+
+        return InkWell(
+          onTap: isAvailable && !isPast 
+            ? () {
+                setState(() {
+                  if (isSelected) {
+                    // Remove if already selected
+                    _selectedTimeSlots.removeWhere(
+                      (selectedSlot) => selectedSlot['waktu'] == slot['waktu']
+                    );
+                  } else {
+                    // Add if not selected
+                    _selectedTimeSlots.add(slot);
+                  }
+                });
+              }
+            : null,
+          child: Container(
+            decoration: BoxDecoration(
+              color: isSelected 
+                ? Colors.blue.withOpacity(0.2)
+                : isAvailable && !isPast 
+                  ? Colors.white
+                  : Colors.grey.withOpacity(0.1),
+              border: Border.all(
+                color: isSelected 
+                  ? Colors.blue 
+                  : Colors.grey.shade300,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    slot['waktu'],
+                    style: TextStyle(
+                      color: !isAvailable 
+                        ? Colors.red
+                        : isPast 
+                          ? Colors.grey
+                          : isSelected
+                            ? Colors.blue
+                            : Colors.black,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  Text(
+                    isAvailable 
+                      ? "Rp.${slot['harga']}"
+                      : "Booked",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: !isAvailable 
+                        ? Colors.red
+                        : isPast 
+                          ? Colors.grey
+                          : isSelected
+                            ? Colors.blue
+                            : Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Tambahkan method untuk menampilkan jadwal dan harga
+  Widget _buildSelectedTimeAndTotalPrice() {
+    // Jika tidak ada waktu yang dipilih
+    if (_selectedTimeSlots.isEmpty) {
+      return Text(
+        "Jadwal: Pilih Jam",
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+      );
+    }
+    
+    // Hitung total harga
+    double totalPrice = 0;
+    for (var slot in _selectedTimeSlots) {
+      if (slot.containsKey('harga')) {
+        var hargaValue = slot['harga'];
+        double harga = hargaValue is int ? hargaValue.toDouble() : 
+                       hargaValue is double ? hargaValue : 0.0;
+        totalPrice += harga;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Jadwal: ${_formattedSelectedTimes}",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        ),
+        SizedBox(height: 8),
+        Text(
+          "Total: Rp ${totalPrice.toStringAsFixed(0)}",
+          style: TextStyle(
+            fontSize: 18, 
+            fontWeight: FontWeight.bold, 
+            color: Colors.green[700]
+          ),
+        ),
+      ],
     );
   }
 }

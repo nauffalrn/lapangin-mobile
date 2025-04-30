@@ -6,6 +6,8 @@ import '../models/booking_model.dart';
 import '../services/booking_services.dart';
 import '../services/lapangan_services.dart';
 import 'detail.dart';
+import '../models/promo_model.dart';
+import '../services/promo_service.dart';
 
 class PembayaranPage extends StatefulWidget {
   final Booking booking;
@@ -20,6 +22,237 @@ class _PembayaranPageState extends State<PembayaranPage> {
   final String nomorEwallet = "081293768288";
   File? _paymentProof;
   bool _isUploading = false;
+
+  // Tambahkan variabel untuk promo
+  List<Promo> _userPromos = [];
+  bool _isLoadingPromos = false;
+  Promo? _selectedPromo;
+  bool _isApplyingPromo = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserPromos();
+  }
+
+  // Method untuk memuat promo yang dimiliki user
+  Future<void> _loadUserPromos() async {
+    setState(() {
+      _isLoadingPromos = true;
+    });
+
+    try {
+      final promos = await PromoService.getUserClaimedPromos();
+
+      // Filter promo yang masih valid
+      final validPromos = promos.where((promo) => promo.isValid).toList();
+
+      setState(() {
+        _userPromos = validPromos;
+        _isLoadingPromos = false;
+      });
+    } catch (e) {
+      print("Error loading user promos: $e");
+      setState(() {
+        _isLoadingPromos = false;
+      });
+    }
+  }
+
+  // Perbaikan method applyPromo
+
+  Future<void> _applyPromo(Promo promo) async {
+    setState(() {
+      _isApplyingPromo = true;
+    });
+
+    try {
+      // Pastikan booking ID ada
+      if (widget.booking.id == null) {
+        throw Exception('Booking ID tidak valid');
+      }
+      
+      // PENTING: Simpan harga asli jika belum ada (hanya sekali)
+      // Ini memastikan hargaAsli selalu menyimpan harga sebelum diskon apapun
+      if (widget.booking.hargaAsli == null) {
+        widget.booking.hargaAsli = widget.booking.totalPrice;
+      }
+
+      // Panggil API untuk menerapkan promo
+      final result = await PromoService.applyPromoToBooking(
+        widget.booking.id!,
+        promo.kodePromo,
+      );
+
+      // Update booking dengan info diskon
+      if (result['success'] == true) {
+        setState(() {
+          // Update booking dengan info promo
+          widget.booking.kodePromo = promo.kodePromo;
+          widget.booking.diskonPersen = promo.diskonPersen;
+
+          // PERBAIKAN: Selalu hitung diskon dari harga asli yang tersimpan
+          double hargaAsli = widget.booking.hargaAsli!;
+          double discount = (hargaAsli * promo.diskonPersen) / 100;
+          widget.booking.totalPrice = hargaAsli - discount;
+
+          _selectedPromo = promo;
+        });
+
+        // Tampilkan pesan sukses
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Promo berhasil diterapkan!'),
+            backgroundColor: Colors.green,
+          )
+        );
+      } else {
+        throw Exception(result['message'] ?? 'Gagal menerapkan promo');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menerapkan promo: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        )
+      );
+    } finally {
+      setState(() {
+        _isApplyingPromo = false;
+      });
+    }
+  }
+
+  // Perbaiki method _cancelPromo
+
+  Future<void> _cancelPromo() async {
+    setState(() {
+      _isApplyingPromo = true;
+    });
+
+    try {
+      // PERBAIKAN: Selalu gunakan hargaAsli yang tersimpan
+      if (widget.booking.hargaAsli == null) {
+        throw Exception('Harga asli tidak tersedia');
+      }
+      
+      // Reset promo pada booking object
+      setState(() {
+        // Kembalikan total harga ke harga asli sebelum diskon
+        widget.booking.totalPrice = widget.booking.hargaAsli;
+        // Reset variable promo
+        widget.booking.kodePromo = null;
+        widget.booking.diskonPersen = null;
+        // PENTING: Jangan reset hargaAsli agar tetap tersedia untuk penggunaan berikutnya
+        // widget.booking.hargaAsli = null; <- HAPUS BARIS INI
+        // Reset selected promo
+        _selectedPromo = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Promo dibatalkan'))
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal membatalkan promo: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        )
+      );
+    } finally {
+      setState(() {
+        _isApplyingPromo = false;
+      });
+    }
+  }
+
+  // Widget untuk menampilkan section promo
+  Widget _buildPromoSection() {
+    if (_isLoadingPromos) {
+      return Center(child: CircularProgressIndicator());
+    }
+
+    if (_userPromos.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        child: Text(
+          "Anda belum memiliki promo",
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: 16),
+        Text(
+          "Gunakan Promo:",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        SizedBox(height: 12),
+
+        // Promo yang dipilih
+        if (_selectedPromo != null)
+          Card(
+            color: Colors.green[50],
+            margin: EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: Icon(Icons.local_offer, color: Colors.green),
+              title: Text(
+                "Diskon ${_selectedPromo!.diskonPersen.toStringAsFixed(0)}% diterapkan",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(_selectedPromo!.kodePromo),
+              trailing: IconButton(
+                icon: Icon(Icons.close, color: Colors.red),
+                onPressed: _isApplyingPromo ? null : _cancelPromo,
+              ),
+            ),
+          )
+        else
+          // Daftar promo yang tersedia
+          ListView.builder(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            itemCount: _userPromos.length,
+            itemBuilder: (context, index) {
+              final promo = _userPromos[index];
+              return Card(
+                margin: EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: Icon(Icons.local_offer, color: Colors.blue),
+                  title: Text(
+                    "Diskon ${promo.diskonPersen.toStringAsFixed(0)}%",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    "Berlaku hingga ${_formatDate(promo.tanggalSelesai)}\nKode: ${promo.kodePromo}"
+                  ),
+                  trailing: ElevatedButton(
+                    onPressed: _isApplyingPromo ? null : () => _applyPromo(promo),
+                    child: Text("Pakai"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  // Helper method untuk format tanggal
+  String _formatDate(DateTime date) {
+    final monthNames = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'
+    ];
+    return "${date.day} ${monthNames[date.month - 1]} ${date.year}";
+  }
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
@@ -210,6 +443,7 @@ class _PembayaranPageState extends State<PembayaranPage> {
     }
   }
 
+  // Update build method untuk menampilkan section promo dan info harga dengan diskon
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -249,26 +483,46 @@ class _PembayaranPageState extends State<PembayaranPage> {
                       ),
                       SizedBox(height: 12),
                       _buildDetailRow("ID Booking:", "#${widget.booking.id}"),
-                      
-                      // Tambahkan informasi nama lapangan
                       _buildDetailRow("Nama Lapangan:", "${widget.booking.namaLapangan ?? 'Tidak tersedia'}"),
-                      
-                      // Tambahkan informasi lokasi/alamat lapangan
                       _buildDetailRow("Lokasi:", "${widget.booking.lokasi ?? 'Tidak tersedia'}"),
-                      
                       _buildDetailRow("Tanggal:", "${widget.booking.tanggal ?? 'Tidak tersedia'}"),
                       _buildDetailRow("Waktu:", _formatTimeSlots(widget.booking.waktu)),
                       
                       if (widget.booking.waktu != null)
                         _buildDetailRow("Jumlah Jam:", "${widget.booking.waktu!.split(',').length}"),
                       
-                      // Tambahkan total harga jika tersedia
-                      if (widget.booking.totalPrice != null)
-                        _buildDetailRow("Total Harga:", "Rp ${widget.booking.totalPrice!.toStringAsFixed(0)}"),
+                      // PERBAIKAN: Cukup tampilkan harga asli sebagai harga normal jika tidak ada diskon
+                      if (widget.booking.diskonPersen == null)
+                        _buildDetailRow(
+                          "Total Harga:", 
+                          "Rp ${widget.booking.totalPrice?.toStringAsFixed(0) ?? '0'}"
+                        ),
+                        
+                      // PERBAIKAN: Jika ada diskon, tampilkan harga asli, diskon, dan total setelah diskon
+                      if (widget.booking.diskonPersen != null) ...[
+                        _buildDetailRow(
+                          "Harga Asli:", 
+                          "Rp ${widget.booking.hargaAsli!.toStringAsFixed(0)}",
+                          isStrikeThrough: true
+                        ),
+                        _buildDetailRow(
+                          "Diskon:", 
+                          "- ${widget.booking.diskonPersen!.toStringAsFixed(0)}%",
+                          isDiscount: true
+                        ),
+                        _buildDetailRow(
+                          "Total Harga:", 
+                          "Rp ${widget.booking.totalPrice!.toStringAsFixed(0)}",
+                          isDiscount: true
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
+
+              // Section promo
+              _buildPromoSection(),
               
               SizedBox(height: 24),
               Text(
@@ -492,7 +746,7 @@ class _PembayaranPageState extends State<PembayaranPage> {
   }
 
   // Tambahkan method ini untuk menampilkan detail booking secara terstruktur
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(String label, String value, {bool isDiscount = false, bool isStrikeThrough = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
@@ -513,6 +767,8 @@ class _PembayaranPageState extends State<PembayaranPage> {
               value,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
+                color: isDiscount ? Colors.green : null,
+                decoration: isStrikeThrough ? TextDecoration.lineThrough : null,
               ),
             ),
           ),
