@@ -66,15 +66,18 @@ class LapanganService {
       );
 
       if (response.statusCode == 200) {
-        return Lapangan.fromJson(jsonDecode(response.body));
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          return Lapangan.fromJson(data['data']);
+        } else {
+          throw Exception('Lapangan tidak ditemukan');
+        }
       } else {
-        throw Exception(
-          'Gagal mengambil detail lapangan: ${response.statusCode}',
-        );
+        throw Exception('Gagal mengambil data lapangan');
       }
     } catch (e) {
-      print("Error di getLapanganById: $e");
-      throw Exception('Gagal mengambil detail lapangan: $e');
+      print("Error in getLapanganById: $e");
+      throw Exception('Gagal mengambil data lapangan: $e');
     }
   }
 

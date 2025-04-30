@@ -18,45 +18,72 @@ class BookingService {
     };
   }
 
-  // Fix the createBooking method
+  // Modifikasi method createBooking untuk mengirim data dengan format yang lebih jelas
 
   static Future<Booking> createBooking(Booking booking) async {
     try {
-      // Use ensureFreshToken instead of directly getting from SharedPreferences
       final token = await AuthService.ensureFreshToken();
-
+      
       if (token == null || token.isEmpty) {
         throw Exception('Authentication token not found. Please login again.');
       }
+      
+      // Fix the URL
+      final String url = '${ApiConfig.baseUrl}/booking/create';
+      
+      // DO NOT sort jadwalList to maintain the original order selected by user
+      List<JadwalItem> originalJadwalList = List.from(booking.jadwalList);
+      
+      // Rather than sorting by time which can make it look like a continuous range,
+      // preserve the original selection order but include explicit additional information
+      
+      // Create separate data structures that explicitly show these are individual slots
+      List<Map<String, dynamic>> explicitSlots = originalJadwalList.map((item) => {
+        'jam': item.jam,
+        'waktuMulai': '${item.jam.toString().padLeft(2, '0')}:00',
+        'waktuSelesai': '${(item.jam + 1).toString().padLeft(2, '0')}:00',
+        'waktuLengkap': '${item.jam.toString().padLeft(2, '0')}:00-${(item.jam + 1).toString().padLeft(2, '0')}:00',
+        'harga': item.harga,
+        'durasi': 1, // Each slot is 1 hour
+      }).toList();
+      
+      // Include waktu as a clear array of separate slots, not a comma-joined string
+      List<String> formattedTimes = originalJadwalList.map((item) {
+        return '${item.jam.toString().padLeft(2, '0')}:00-${(item.jam + 1).toString().padLeft(2, '0')}:00';
+      }).toList();
+      
+      // Create the booking request payload
+      final Map<String, dynamic> requestBody = booking.toJson();
+      
+      // Add these additional fields to make it absolutely clear these are separate slots
+      requestBody['explicitTimeSlots'] = explicitSlots;
+      requestBody['formattedTimeSlots'] = formattedTimes;
+      requestBody['waktuArray'] = formattedTimes; // Alternative field name
+      requestBody['isConsecutive'] = false;
+      requestBody['processingMode'] = 'individual_slots';
+      
+      print("Request URL: $url");
+      print("Request body: ${jsonEncode(requestBody)}");
+      
+      // Debug logs for clarity
+      print("Sending booking with ${originalJadwalList.length} separate time slots:");
+      for (int i = 0; i < formattedTimes.length; i++) {
+        print("Slot #${i+1}: ${formattedTimes[i]} (jam ${originalJadwalList[i].jam}:00)");
+      }
 
-      // Debug logging
-      print(
-        "Creating booking with token: ${token.substring(0, min(10, token.length))}...",
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+          'X-Booking-Mode': 'individual-slots', // Custom header to indicate booking mode
+        },
+        body: jsonEncode(requestBody),
+      ).timeout(
+        const Duration(seconds: 20),
+        onTimeout: () => throw TimeoutException('Connection timed out. Please try again.'),
       );
-      print("Request URL: ${ApiConfig.baseUrl}/api/booking/create");
-      print("Request body: ${jsonEncode(booking.toJson())}");
-
-      // Always use the full path with /api prefix to be consistent
-      final String url = '${ApiConfig.baseUrl}/api/booking/create';
-
-      final response = await http
-          .post(
-            Uri.parse(url),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-              'Accept': 'application/json',
-            },
-            body: jsonEncode(booking.toJson()),
-          )
-          .timeout(
-            const Duration(seconds: 20),
-            onTimeout:
-                () =>
-                    throw TimeoutException(
-                      'Connection timed out. Please try again.',
-                    ),
-          );
 
       print("Booking response status: ${response.statusCode}");
       print("Booking response body: ${response.body}");
@@ -97,16 +124,24 @@ class BookingService {
               List<JadwalItem> sortedJadwal = List.from(result.jadwalList);
               sortedJadwal.sort((a, b) => a.jam.compareTo(b.jam));
 
-              // Create formatted time string (e.g., "09:00, 10:00, 11:00")
-              List<String> timeSlots =
-                  sortedJadwal
-                      .map(
-                        (item) => "${item.jam.toString().padLeft(2, '0')}:00",
-                      )
-                      .toList();
+              // Create formatted time string with each individual slot (e.g., "09:00-10:00, 11:00-12:00")
+              List<String> timeSlots = sortedJadwal.map((item) {
+                String startHour = item.jam.toString().padLeft(2, '0');
+                String endHour = (item.jam + 1).toString().padLeft(2, '0');
+                return "$startHour:00-$endHour:00";
+              }).toList();
 
               // Set the waktu field
               result.waktu = timeSlots.join(", ");
+            }
+
+            // PERBAIKAN: Pastikan untuk mempertahankan namaLapangan dan lokasi jika tidak ada dalam respons API
+            if (result.namaLapangan == null || result.namaLapangan!.isEmpty) {
+              result.namaLapangan = booking.namaLapangan;
+            }
+            
+            if (result.lokasi == null || result.lokasi!.isEmpty) {
+              result.lokasi = booking.lokasi;
             }
 
             return result;
@@ -126,16 +161,24 @@ class BookingService {
               List<JadwalItem> sortedJadwal = List.from(result.jadwalList);
               sortedJadwal.sort((a, b) => a.jam.compareTo(b.jam));
 
-              // Create formatted time string (e.g., "09:00, 10:00, 11:00")
-              List<String> timeSlots =
-                  sortedJadwal
-                      .map(
-                        (item) => "${item.jam.toString().padLeft(2, '0')}:00",
-                      )
-                      .toList();
+              // Create formatted time string with each individual slot (e.g., "09:00-10:00, 11:00-12:00")
+              List<String> timeSlots = sortedJadwal.map((item) {
+                String startHour = item.jam.toString().padLeft(2, '0');
+                String endHour = (item.jam + 1).toString().padLeft(2, '0');
+                return "$startHour:00-$endHour:00";
+              }).toList();
 
               // Set the waktu field
               result.waktu = timeSlots.join(", ");
+            }
+
+            // PERBAIKAN: Pastikan untuk mempertahankan namaLapangan dan lokasi jika tidak ada dalam respons API
+            if (result.namaLapangan == null || result.namaLapangan!.isEmpty) {
+              result.namaLapangan = booking.namaLapangan;
+            }
+            
+            if (result.lokasi == null || result.lokasi!.isEmpty) {
+              result.lokasi = booking.lokasi;
             }
 
             return result;
@@ -440,5 +483,46 @@ class BookingService {
     }
 
     return processed;
+  }
+
+  // Tambahkan metode ini ke class BookingService
+
+  static Future<void> cancelBooking(int bookingId) async {
+    try {
+      final token = await AuthService.ensureFreshToken();
+      
+      if (token == null || token.isEmpty) {
+        throw Exception('Authentication token not found. Please login again.');
+      }
+      
+      final String url = '${ApiConfig.baseUrl}/booking/cancel/$bookingId';
+      
+      print("Cancel booking request URL: $url");
+      print("Using HTTP DELETE method instead of POST");
+
+      // Ubah metode HTTP dari POST menjadi DELETE
+      final response = await http.delete(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw TimeoutException('Connection timed out. Please try again.'),
+      );
+
+      print("Cancel booking response status: ${response.statusCode}");
+      print("Cancel booking response body: ${response.body}");
+
+      if (response.statusCode != 200) {
+        final responseData = jsonDecode(response.body);
+        final errorMessage = responseData['message'] ?? 'Failed to cancel booking';
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      print("Error canceling booking: $e");
+      throw e;
+    }
   }
 }

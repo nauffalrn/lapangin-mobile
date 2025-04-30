@@ -17,13 +17,20 @@ class JadwalItem {
               : 0.0,
     );
   }
+
+  // Tambahkan method ini ke class JadwalItem
+  String get formattedTime {
+    String startHour = jam.toString().padLeft(2, '0');
+    String endHour = (jam + 1).toString().padLeft(2, '0');
+    return "$startHour:00 - $endHour:00";
+  }
 }
 
 class Booking {
   final int? id;
   final int? lapanganId;
-  final String? namaLapangan;
-  final String? lokasi;
+  String? namaLapangan; // Ubah dari final menjadi mutable
+  String? lokasi; // Ubah dari final menjadi mutable
   final String? tanggal;
   String? waktu;
   final int? rating;
@@ -52,11 +59,37 @@ class Booking {
     this.lapanganData,
   });
 
+  // Modifikasi method toJson untuk menambahkan flag dan struktur yang lebih jelas
   Map<String, dynamic> toJson() {
+    // Membuat array timeSlots yang lebih eksplisit
+    List<Map<String, dynamic>> individualSlots = jadwalList.map((item) {
+      return {
+        'jam': item.jam,
+        'jamMulai': item.jam,
+        'jamSelesai': item.jam + 1,
+        'harga': item.harga,
+        'waktu': "${item.jam.toString().padLeft(2, '0')}:00-${(item.jam + 1).toString().padLeft(2, '0')}:00"
+      };
+    }).toList();
+
+    // Format waktu yang eksplisit sebagai array terpisah (tidak digabungkan dalam satu string)
+    List<String> timeSlots = jadwalList.map((item) {
+      String startHour = item.jam.toString().padLeft(2, '0');
+      String endHour = (item.jam + 1).toString().padLeft(2, '0');
+      return "$startHour:00-$endHour:00";
+    }).toList();
+
     return {
       'lapanganId': lapanganId,
+      'namaLapangan': namaLapangan, 
+      'lokasi': lokasi,
       'tanggal': tanggal,
       'jadwalList': jadwalList.map((item) => item.toJson()).toList(),
+      'timeSlots': timeSlots, // Array of individual time slots as strings
+      'individualSlots': individualSlots, // Array of detailed slot objects
+      'isConsecutive': false, // Explicit flag saying these are separate slots
+      'isMultipleSlots': jadwalList.length > 1, // Another flag for clarity
+      'totalSlots': jadwalList.length // Include total slot count
     };
   }
 

@@ -284,8 +284,13 @@ class _DetailPageState extends State<DetailPage> {
       return hourA.compareTo(hourB);
     });
     
-    // Create text with format: "09:00, 10:00, 11:00"
-    return sortedSlots.map((slot) => slot['waktu']).join(", ");
+    // Create text with format: "09:00-10:00, 11:00-12:00, 13:00-14:00"
+    return sortedSlots.map((slot) {
+      String startHour = slot['waktu'];
+      int hour = int.parse(startHour.split(':')[0]);
+      String endHour = "${hour + 1}:00";
+      return "$startHour-$endHour";
+    }).join(", ");
   }
 
   // Update the _createBooking method with better error handling
@@ -309,15 +314,9 @@ Future<void> _createBooking() async {
     // Create jadwalItems from selected slots
     List<JadwalItem> jadwalItems = [];
     
-    // Sort slots by time first
-    List<Map<String, dynamic>> sortedSlots = List.from(_selectedTimeSlots);
-    sortedSlots.sort((a, b) {
-      int hourA = int.parse(a['waktu'].split(':')[0]);
-      int hourB = int.parse(b['waktu'].split(':')[0]);
-      return hourA.compareTo(hourB);
-    });
-    
-    for (var slot in sortedSlots) {
+    // IMPORTANT: DO NOT sort slots - preserve the original selection order
+    // This prevents backend from assuming consecutive slots
+    for (var slot in _selectedTimeSlots) {
       // Extract hour from time string
       int jamBooking = int.parse(slot['waktu'].split(':')[0]);
       
@@ -330,13 +329,18 @@ Future<void> _createBooking() async {
       jadwalItems.add(JadwalItem(jam: jamBooking, harga: harga));
     }
 
+    // PERBAIKAN: Tambahkan nama lapangan dan lokasi dari widget lapangan
     final booking = Booking(
       lapanganId: widget.lapangan.id,
+      namaLapangan: widget.lapangan.nama, // Tambahkan nama lapangan
+      lokasi: widget.lapangan.alamat,     // Tambahkan alamat/lokasi
       tanggal: DateFormat('yyyy-MM-dd').format(selectedDate!),
       jadwalList: jadwalItems
     );
     
     print("Creating booking for lapangan ID: ${booking.lapanganId}");
+    print("Lapangan name: ${booking.namaLapangan}");
+    print("Location: ${booking.lokasi}");
     print("Date: ${booking.tanggal}");
     print("Time slots: ${jadwalItems.length} slots");
     

@@ -66,12 +66,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/logo.png
-    - assets/tenis_jakarta.jpg
-    - assets/bultang_alya.jpg
-    - assets/basket_suna.jpg
-    - assets/futsal_mini.png
-    - assets/golf_cheap.jpeg
-    - assets/yayaya.jpeg
+    - assets/qr-code.png  # Tambahkan baris ini untuk QR Code
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
