@@ -30,6 +30,10 @@ class _DetailPageState extends State<DetailPage> {
   List<Map<String, dynamic>> _timeSlots = [];
   List<Review> _reviews = [];
   bool _isLoadingReviews = false;
+  int _reviewPage = 1;
+  final int _reviewsPerPage = 5;
+  bool _hasMoreReviews = true;
+  bool _isLoadingMoreReviews = false;
 
   @override
   void initState() {
@@ -460,49 +464,75 @@ Future<void> _createBooking() async {
     }
   }
 
-  Future<void> _fetchReviews() async {
+  Future<void> _fetchReviews({bool refresh = false}) async {
+  if (refresh) {
     setState(() {
+      _reviewPage = 1;
+      _hasMoreReviews = true;
+      if (_isLoadingReviews) return; // Prevent multiple requests
       _isLoadingReviews = true;
     });
+  } else if (_isLoadingMoreReviews || !_hasMoreReviews) {
+    return; // Don't fetch if already loading more or no more data
+  } else {
+    setState(() {
+      _isLoadingMoreReviews = true;
+    });
+  }
 
-    try {
-      print("Fetching reviews for lapangan: ${widget.lapangan.id}");
-      
-      // Add a catch block for timeouts
-      final reviews = await ReviewService.getReviewsByLapanganId(
-        widget.lapangan.id,
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          print("Review fetch timed out");
-          return [];
-        },
-      );
-      
-      print("Fetched ${reviews.length} reviews");
-      
-      // Make sure widget is still mounted before updating state
-      if (mounted) {
-        setState(() {
+  try {
+    print("Fetching reviews for lapangan: ${widget.lapangan.id}, page: $_reviewPage");
+    
+    final reviews = await ReviewService.getReviewsByLapanganId(
+      widget.lapangan.id, 
+      page: _reviewPage,
+      size: _reviewsPerPage
+    ).timeout(
+      const Duration(seconds: 15),
+      onTimeout: () {
+        print("Review fetch timed out");
+        return [];
+      },
+    );
+    
+    print("Fetched ${reviews.length} reviews for page $_reviewPage");
+    
+    if (mounted) {
+      setState(() {
+        if (refresh) {
           _reviews = reviews;
-          _isLoadingReviews = false;
-        });
-      }
-    } catch (e) {
-      print("Error fetching reviews: $e");
-      if (mounted) {
-        setState(() {
-          _reviews = []; 
-          _isLoadingReviews = false;
-        });
+        } else {
+          _reviews.addAll(reviews);
+        }
         
-        // Show error snackbar
+        // Check if we got fewer than requested - means end of data
+        _hasMoreReviews = reviews.length >= _reviewsPerPage;
+        
+        // Increment page for next fetch
+        _reviewPage++;
+        
+        _isLoadingReviews = false;
+        _isLoadingMoreReviews = false;
+      });
+    }
+  } catch (e) {
+    print("Error fetching reviews: $e");
+    if (mounted) {
+      setState(() {
+        if (refresh) _reviews = [];
+        _isLoadingReviews = false;
+        _isLoadingMoreReviews = false;
+      });
+      
+      // Optional - show error only on initial fetch
+      if (refresh) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load reviews: ${e.toString().split('\n').first}')),
         );
       }
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -653,30 +683,14 @@ Future<void> _createBooking() async {
                   ),
                   SizedBox(height: 10),
                   
-                  // Replace the overall rating row with just a message if needed
-                  _isLoadingReviews
-                    ? Center(child: CircularProgressIndicator(strokeWidth: 2))
-                    : _reviews.isEmpty
-                      ? Text(
-                          'Belum ada ulasan',
-                          style: TextStyle(color: Colors.grey),
-                        )
-                      : SizedBox(), // Empty SizedBox instead of showing rating again
-                      
-                  // Individual reviews list
-                  SizedBox(height: 16),
-                  _reviews.isEmpty 
-                    ? SizedBox() // Don't show duplicate "no reviews" message
-                    : Column(
-                        children: _reviews
-                          .map((review) => _buildReviewItem(
-                            review.username,
-                            review.rating,
-                            review.comment,
-                            review.formattedDate ?? '', // Add the date here
-                          ))
-                          .toList(),
-                      ),
+                  // Replace the reviews display code with this:
+                  RefreshIndicator(
+                    onRefresh: () async => await _fetchReviews(refresh: true),
+                    child: SingleChildScrollView(
+                      physics: AlwaysScrollableScrollPhysics(),
+                      child: _buildReviewsSection(),
+                    ),
+                  ),
                       
                   // Tombol booking lama dihapus
                   SizedBox(height: 20),
@@ -972,6 +986,48 @@ Future<void> _createBooking() async {
             color: Colors.green[700]
           ),
         ),
+      ],
+    );
+  }
+
+  // Replace your current review UI section with this code
+  Widget _buildReviewsSection() {
+    if (_isLoadingReviews && _reviews.isEmpty) {
+      return Center(child: CircularProgressIndicator(strokeWidth: 2));
+    }
+    
+    if (_reviews.isEmpty) {
+      return Text(
+        'Belum ada ulasan',
+        style: TextStyle(color: Colors.grey),
+      );
+    }
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ...List.generate(_reviews.length, (index) {
+          final review = _reviews[index];
+          return _buildReviewItem(
+            review.username,
+            review.rating,
+            review.comment,
+            review.formattedDate ?? '',
+          );
+        }),
+        
+        if (_hasMoreReviews) 
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12.0),
+            child: Center(
+              child: _isLoadingMoreReviews 
+                ? CircularProgressIndicator(strokeWidth: 2)
+                : TextButton(
+                    onPressed: () => _fetchReviews(),
+                    child: Text('Muat Ulasan Lainnya'),
+                  ),
+            ),
+          ),
       ],
     );
   }

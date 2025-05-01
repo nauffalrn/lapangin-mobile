@@ -46,6 +46,10 @@ class Booking {
   String? kodePromo;
   double? diskonPersen;
   double? hargaAsli;
+  
+  // Add these missing fields
+  int? jamMulai;
+  int? jamSelesai;
 
   Booking({
     this.id,
@@ -65,6 +69,8 @@ class Booking {
     this.kodePromo,
     this.diskonPersen,
     this.hargaAsli,
+    this.jamMulai,
+    this.jamSelesai,
   });
 
   // Perbaikan method applyPromo
@@ -153,267 +159,127 @@ class Booking {
     return json;
   }
 
+  // Update the fromJson method in the Booking class to better handle backend data
+
   factory Booking.fromJson(Map<String, dynamic> json) {
+    print("Parsing booking data: $json"); // Add this debug log
+    
     // Handle jadwalList
     List<JadwalItem> jadwalItems = [];
     if (json['jadwalList'] != null && json['jadwalList'] is List) {
-      jadwalItems =
-          (json['jadwalList'] as List)
-              .map((item) => JadwalItem.fromJson(item as Map<String, dynamic>))
-              .toList();
+      jadwalItems = (json['jadwalList'] as List)
+          .map((item) => JadwalItem.fromJson(item as Map<String, dynamic>))
+          .toList();
     }
-
-    // Simpan data lapangan lengkap (jika ada)
-    Map<String, dynamic>? lapanganData;
-    if (json['lapangan'] != null && json['lapangan'] is Map) {
-      lapanganData = Map<String, dynamic>.from(json['lapangan'] as Map);
-    }
-
-    // Format tanggal
+  
+    // Handle date formats properly
     String? tanggal;
-    if (json['tanggal'] != null) {
+    if (json['bookingDate'] != null) {
       try {
-        // Parse tanggal dari format YYYY-MM-DD ke DD Bulan YYYY
-        String rawDate = json['tanggal'].toString();
-        if (rawDate.contains("-")) {
-          var dateParts = rawDate.split("-");
-          if (dateParts.length == 3) {
+        // Format for Java LocalDateTime: "yyyy-MM-ddTHH:mm:ss"
+        String dateStr = json['bookingDate'].toString();
+        
+        // If there's a T in the date, it's an ISO format
+        if (dateStr.contains("T")) {
+          final dateComponents = dateStr.split("T")[0].split("-");
+          if (dateComponents.length == 3) {
             final months = [
-              'Januari',
-              'Februari',
-              'Maret',
-              'April',
-              'Mei',
-              'Juni',
-              'Juli',
-              'Agustus',
-              'September',
-              'Oktober',
-              'November',
-              'Desember',
+              'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+              'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
             ];
-            int year = int.parse(dateParts[0]);
-            int month = int.parse(dateParts[1]);
-            int day = int.parse(dateParts[2]);
-
-            // Format: DD Bulan YYYY (tanpa strip)
-            tanggal = "$day ${months[month - 1]} $year";
-          } else {
-            tanggal = rawDate;
+            int year = int.parse(dateComponents[0]);
+            int month = int.parse(dateComponents[1]);
+            int day = int.parse(dateComponents[2]);
+            
+            tanggal = "$day ${months[month-1]} $year";
           }
-        } else {
-          tanggal = rawDate;
         }
       } catch (e) {
-        print("Error format tanggal: $e");
-        tanggal = json['tanggal'].toString();
-      }
-    } else if (json['bookingDate'] != null) {
-      try {
-        String bookingDate = json['bookingDate'].toString();
-        if (bookingDate.contains("T")) {
-          var datePart = bookingDate.split("T")[0].split("-");
-          if (datePart.length == 3) {
-            final months = [
-              'Januari',
-              'Februari',
-              'Maret',
-              'April',
-              'Mei',
-              'Juni',
-              'Juli',
-              'Agustus',
-              'September',
-              'Oktober',
-              'November',
-              'Desember',
-            ];
-            int year = int.parse(datePart[0]);
-            int month = int.parse(datePart[1]);
-            int day = int.parse(datePart[2]);
-
-            // Format: DD Bulan YYYY (tanpa strip)
-            tanggal = "$day ${months[month - 1]} $year";
-          } else {
-            tanggal = bookingDate.split("T")[0];
-          }
-        } else {
-          tanggal = bookingDate;
-        }
-      } catch (e) {
-        print("Error parsing date: $e");
+        print("Error parsing booking date: $e");
         tanggal = json['bookingDate'].toString();
       }
+    } else if (json['tanggal'] != null) {
+      tanggal = json['tanggal'].toString();
     }
-
-    // Format waktu
+  
+    // Calculate time range
     String? waktu;
+    int? jamMulai;
+    int? jamSelesai;
+    
     if (json['jamMulai'] != null && json['jamSelesai'] != null) {
-      waktu = "${json['jamMulai']}:00 - ${json['jamSelesai']}:00";
+      jamMulai = json['jamMulai'] is int ? json['jamMulai'] : int.tryParse(json['jamMulai'].toString()) ?? 0;
+      jamSelesai = json['jamSelesai'] is int ? json['jamSelesai'] : int.tryParse(json['jamSelesai'].toString()) ?? 0;
+      waktu = "${jamMulai.toString().padLeft(2, '0')}:00-${jamSelesai.toString().padLeft(2, '0')}:00";
     } else if (json['waktu'] != null) {
       waktu = json['waktu'].toString();
     }
-
-    // Ekstrak data lapangan
+  
+    // Extract venue name and location from either lapangan object or direct properties
     String? namaLapangan;
     String? lokasi;
-
-    // Coba ambil dari objek lapangan dengan pengecekan yang lebih baik
+    Map<String, dynamic>? lapanganData;
+  
     if (json['lapangan'] != null) {
-      // Tangani kasus lapangan hanya berisi ID
-      if (json['lapangan'] is int || json['lapangan'] is String) {
-        // Lapangan hanya berupa ID, gunakan fallback dari property lain
-      } else if (json['lapangan'] is Map) {
-        // Lapangan berupa object Map
-        Map<String, dynamic> lapangan =
-            json['lapangan'] as Map<String, dynamic>;
-
-        // Debug: Cetak seluruh data lapangan
-        print("DEBUG DATA LAPANGAN: $lapangan");
-
-        // Nama lapangan
-        if (lapangan['namaLapangan'] != null) {
-          namaLapangan = lapangan['namaLapangan'].toString();
-        } else if (lapangan['nama'] != null) {
-          namaLapangan = lapangan['nama'].toString();
-        }
-
-        // Lokasi/alamat - penting dari model backend
-        if (lapangan['alamat'] != null) {
-          lokasi = lapangan['alamat'].toString();
-        } else if (lapangan['alamatLapangan'] != null) {
-          // Tambahkan pengambilan dari alamatLapangan yang ternyata ada di JSON
-          lokasi = lapangan['alamatLapangan'].toString();
-        } else if (lapangan['lokasi'] != null) {
-          lokasi = lapangan['lokasi'].toString();
-        }
+      if (json['lapangan'] is Map) {
+        lapanganData = Map<String, dynamic>.from(json['lapangan'] as Map);
+        namaLapangan = lapanganData['namaLapangan']?.toString();
+        
+        // Try different field names for location
+        lokasi = lapanganData['alamatLapangan']?.toString() ?? 
+                lapanganData['alamat']?.toString() ??
+                lapanganData['address']?.toString();
       }
     }
-
-    // Fallback ke properti langsung jika tidak ada di objek lapangan
-    if (namaLapangan == null) {
-      namaLapangan =
-          json['namaLapangan']?.toString() ??
-          json['nama_lapangan']?.toString() ??
-          'Lapangan tidak diketahui';
-    }
-
-    // Untuk lokasi, periksa lebih banyak kemungkinan nama field dari backend
-    if (lokasi == null) {
-      lokasi =
-          json['lokasi']?.toString() ??
-          json['alamat']?.toString() ??
-          json['address']?.toString() ??
-          (json['lapangan_alamat'] is String ? json['lapangan_alamat'] : null);
-    }
-
-    // Jika masih null, coba ekstrak dari booking_date untuk nama lapangan
-    if (lokasi == null) {
-      // Coba ambil alamat dari Lapangan
-      if (json['lapangan'] != null && json['lapangan'] is Map) {
-        var lapanganMap = json['lapangan'] as Map<String, dynamic>;
-        lokasi = lapanganMap['alamat']?.toString();
-      }
-
-      // Jika masih null, gunakan namaLapangan
-      if (lokasi == null || lokasi.isEmpty) {
-        // Jangan gunakan nama lapangan sebagai fallback, biarkan null
-        lokasi = null;
-      }
-    }
-
-    // Handle review
-    int? rating;
-    String? review;
-    String? reviewerName;
-    String? reviewDate;
-
-    if (json['review'] != null) {
-      if (json['review'] is Map) {
-        Map<String, dynamic> reviewMap = json['review'] as Map<String, dynamic>;
-
-        // Rating
-        if (reviewMap['rating'] != null) {
-          if (reviewMap['rating'] is int) {
-            rating = reviewMap['rating'] as int;
-          } else {
-            rating = int.tryParse(reviewMap['rating'].toString());
-          }
-        }
-
-        // Review content
-        if (reviewMap['komentar'] != null) {
-          review = reviewMap['komentar'].toString();
-        } else if (reviewMap['review'] != null) {
-          review = reviewMap['review'].toString();
-        } else if (reviewMap['comment'] != null) {
-          review = reviewMap['comment'].toString();
-        }
-
-        // Reviewer name
-        reviewerName = reviewMap['username']?.toString();
-
-        // Review date - hilangkan pemisah T
-        if (reviewMap['tanggalReview'] != null) {
-          String rawDate = reviewMap['tanggalReview'].toString();
-          // Koreksi untuk menggunakan replaceAll bukan replace
-          if (rawDate.contains("T")) {
-            reviewDate = rawDate.replaceAll("T", " ");
-          } else {
-            reviewDate = rawDate;
-          }
-        }
+  
+    // Fallback values from direct properties
+    namaLapangan ??= json['namaLapangan']?.toString();
+    lokasi ??= json['lokasi']?.toString() ?? json['alamat']?.toString();
+    
+    // Get total price
+    double? totalPrice;
+    if (json['totalPrice'] != null) {
+      if (json['totalPrice'] is double) {
+        totalPrice = json['totalPrice'];
+      } else if (json['totalPrice'] is int) {
+        totalPrice = (json['totalPrice'] as int).toDouble();
       } else {
-        // Fallback jika review bukan Map
-        review = json['review'].toString();
+        totalPrice = double.tryParse(json['totalPrice'].toString());
       }
-    } else {
-      // Data review langsung dari objek booking
-      if (json['rating'] != null) {
-        if (json['rating'] is int) {
-          rating = json['rating'];
-        } else {
-          rating = int.tryParse(json['rating'].toString());
-        }
-      }
-
-      review = json['komentar']?.toString() ?? json['review']?.toString();
-      reviewerName =
-          json['reviewerName']?.toString() ??
-          json['username']?.toString() ??
-          json['usernamePengreview']?.toString();
-      reviewDate =
-          json['reviewDate']?.toString() ?? json['tanggalReview']?.toString();
     }
-
-    // Debugger untuk melihat nilai lokasi
-    print("Booking ID: ${json['id']}");
-    print("Nama Lapangan: $namaLapangan");
-    print("Lokasi final: $lokasi");
-
+    
+    // Get booking ID - make sure to handle numeric or string IDs
+    int? id;
+    if (json['id'] != null) {
+      if (json['id'] is int) {
+        id = json['id'];
+      } else {
+        id = int.tryParse(json['id'].toString());
+      }
+    }
+  
+    // Get lapanganId - similar approach to handling ID
+    int? lapanganId;
+    if (json['lapanganId'] != null) {
+      lapanganId = json['lapanganId'] is int ? json['lapanganId'] : int.tryParse(json['lapanganId'].toString());
+    } else if (json['lapangan'] is Map && json['lapangan']['id'] != null) {
+      lapanganId = json['lapangan']['id'] is int ? json['lapangan']['id'] : int.tryParse(json['lapangan']['id'].toString());
+    }
+    
+    print("Parsed booking - ID: $id, Tanggal: $tanggal, Waktu: $waktu, Venue: $namaLapangan");
+  
     return Booking(
-      id:
-          json['id'] is int
-              ? json['id']
-              : json['id'] is String
-              ? int.tryParse(json['id'].toString())
-              : null,
-      lapanganId: json['lapanganId'] ?? json['lapangan_id'],
+      id: id,
+      lapanganId: lapanganId,
       namaLapangan: namaLapangan,
       lokasi: lokasi,
       tanggal: tanggal,
       waktu: waktu,
-      rating: rating,
-      review: review,
-      reviewerName: reviewerName,
-      reviewDate: reviewDate,
       jadwalList: jadwalItems,
-      status: json['status']?.toString(),
-      totalPrice:
-          json['totalPrice'] != null
-              ? double.tryParse(json['totalPrice'].toString())
-              : null,
-      lapanganData: lapanganData, // Simpan data lapangan lengkap
+      totalPrice: totalPrice,
+      lapanganData: lapanganData,
+      jamMulai: jamMulai,
+      jamSelesai: jamSelesai,
     );
   }
 }

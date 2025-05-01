@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/booking_model.dart';
 import '../services/booking_services.dart';
 import '../services/lapangan_services.dart';
 import 'detail.dart';
 import '../models/promo_model.dart';
 import '../services/promo_service.dart';
+import 'tracking_booking.dart';
 
 class PembayaranPage extends StatefulWidget {
   final Booking booking;
@@ -265,40 +267,79 @@ class _PembayaranPageState extends State<PembayaranPage> {
     }
   }
 
-  Future<void> _uploadPaymentProof() async {
-    if (_paymentProof == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Silakan pilih bukti pembayaran')));
-      return;
+  // Update the _uploadPaymentProof method to ensure data is properly saved and used
+
+Future<void> _uploadPaymentProof() async {
+  if (_paymentProof == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Silakan pilih bukti pembayaran'))
+    );
+    return;
+  }
+
+  setState(() {
+    _isUploading = true;
+  });
+
+  try {
+    if (widget.booking.id == null) {
+      throw Exception('Invalid booking ID');
     }
 
+    // Save booking locally before uploading payment
+    await BookingService.saveBookingLocally(widget.booking);
+    print("Saving booking ${widget.booking.id} locally before payment upload");
+    
+    final result = await BookingService.uploadPayment(widget.booking.id!, _paymentProof!);
+    
     setState(() {
-      _isUploading = true;
+      _isUploading = false;
     });
 
+    int bookingId = widget.booking.id!;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Bukti pembayaran berhasil diunggah'))
+    );
+
+    // CRITICAL: Force refresh the booking history before navigating
     try {
-      await BookingService.uploadPayment(widget.booking.id!, _paymentProof!);
-
-      setState(() {
-        _isUploading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Bukti pembayaran berhasil diunggah')),
+      // Force refresh all bookings to ensure updated data
+      await BookingService.getBookingHistory();
+      
+      // Get the specific updated booking
+      final updatedBooking = await BookingService.getBookingDetails(bookingId);
+      await BookingService.saveBookingLocally(updatedBooking);
+      
+      // Use pushAndRemoveUntil to clear the navigation stack
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TrackingBookingPage(bookingId: bookingId),
+        ),
+        (route) => route.settings.name == '/',
       );
-
-      // Kembali ke halaman riwayat
-      Navigator.pushReplacementNamed(context, '/history');
     } catch (e) {
-      setState(() {
-        _isUploading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mengunggah bukti pembayaran: $e')),
+      print("Error refreshing data after payment: $e");
+      
+      // Navigate anyway with fallback
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TrackingBookingPage(bookingId: bookingId),
+        ),
+        (route) => route.settings.name == '/',
       );
     }
+  } catch (e) {
+    setState(() {
+      _isUploading = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Gagal mengunggah bukti pembayaran: $e')),
+    );
   }
+}
 
   Future<void> _cancelBooking({bool navigateBack = false}) async {
     // Jika dipanggil dari tombol Batal (bukan navigasi back), tampilkan konfirmasi

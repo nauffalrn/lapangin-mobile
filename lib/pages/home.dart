@@ -294,7 +294,14 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           TextButton(
-            onPressed: () {},
+            onPressed: () {
+              // Navigate to a dedicated page for all listings instead of modifying state
+              if (title == "Rekomendasi Lapangan") {
+                _showAllRecommendedFields();
+              } else if (title == "Lapangan Rating Tertinggi") {
+                _showAllHighestRatedFields();
+              }
+            },
             child: Text(
               "Lihat Semua",
               style: TextStyle(
@@ -304,6 +311,68 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Add this new method to show all recommended fields in a new screen
+  void _showAllRecommendedFields() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: Text(_searchQuery.isEmpty ? "Rekomendasi Lapangan" : "Hasil Pencarian"),
+            backgroundColor: Color(0xFF0A192F),
+            foregroundColor: Colors.white,
+          ),
+          body: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: GridView.builder(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.8,
+              ),
+              itemCount: _filteredLapanganList.length, // Use filtered list instead of full list
+              itemBuilder: (context, index) {
+                return _buildLapanganCard(_filteredLapanganList[index]);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Add this helper method to show all highest-rated fields in a new screen
+  void _showAllHighestRatedFields() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: Text("Lapangan Rating Tertinggi"),
+            backgroundColor: Color(0xFF0A192F),
+            foregroundColor: Colors.white,
+          ),
+          body: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: GridView.builder(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.8,
+              ),
+              itemCount: _getSortedByRating(_filteredLapanganList).length,
+              itemBuilder: (context, index) {
+                return _buildLapanganCard(_getSortedByRating(_filteredLapanganList)[index]);
+              },
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -720,6 +789,9 @@ class _HomePageState extends State<HomePage> {
             )
             .toList();
       }
+      
+      // Reset jumlahTampil to default when searching
+      jumlahTampil = 4;
     });
   }
 
