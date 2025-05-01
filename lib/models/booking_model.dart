@@ -46,6 +46,7 @@ class Booking {
   String? kodePromo;
   double? diskonPersen;
   double? hargaAsli;
+  double? hargaDiskon;  // Add this property
   
   // Add these missing fields
   int? jamMulai;
@@ -69,13 +70,12 @@ class Booking {
     this.kodePromo,
     this.diskonPersen,
     this.hargaAsli,
+    this.hargaDiskon,  // Add this to the constructor parameters
     this.jamMulai,
     this.jamSelesai,
   });
 
-  // Perbaikan method applyPromo
-
-  // Method untuk mengaplikasikan promo ke booking
+  // Update the applyPromo method to also set hargaDiskon
   void applyPromo(String kodePromo, double diskonPersen) {
     this.kodePromo = kodePromo;
     this.diskonPersen = diskonPersen;
@@ -89,12 +89,13 @@ class Booking {
       // PERBAIKAN: Selalu hitung diskon berdasarkan harga asli
       final double discount = (this.hargaAsli! * diskonPersen) / 100;
       this.totalPrice = this.hargaAsli! - discount;
+      
+      // Set hargaDiskon to the new discounted price
+      this.hargaDiskon = this.totalPrice;
     }
   }
 
-  // Perbaikan method resetPromo
-
-  // Method untuk mereset promo - pastikan tidak mereset hargaAsli
+  // Update resetPromo to also reset hargaDiskon
   void resetPromo() {
     if (this.hargaAsli != null) {
       // Kembalikan total harga ke harga asli
@@ -104,9 +105,7 @@ class Booking {
     // Reset kode promo dan persentase diskon
     this.kodePromo = null;
     this.diskonPersen = null;
-    
-    // PENTING: Jangan reset hargaAsli
-    // this.hargaAsli = null; <- HAPUS BARIS INI
+    this.hargaDiskon = null;  // Also reset hargaDiskon
   }
 
   // Tambahkan method untuk menghitung total harga
@@ -154,6 +153,11 @@ class Booking {
     // Tambahkan kode promo jika ada
     if (kodePromo != null && kodePromo!.isNotEmpty) {
       json['kodePromo'] = kodePromo;
+    }
+    
+    // Inside the toJson method, add the hargaDiskon field to the json map:
+    if (hargaDiskon != null) {
+      json['hargaDiskon'] = hargaDiskon;
     }
     
     return json;
@@ -248,6 +252,18 @@ class Booking {
       }
     }
     
+    // Get discounted price if available
+    double? hargaDiskon;
+    if (json['hargaDiskon'] != null) {
+      if (json['hargaDiskon'] is double) {
+        hargaDiskon = json['hargaDiskon'];
+      } else if (json['hargaDiskon'] is int) {
+        hargaDiskon = (json['hargaDiskon'] as int).toDouble();
+      } else {
+        hargaDiskon = double.tryParse(json['hargaDiskon'].toString());
+      }
+    }
+    
     // Get booking ID - make sure to handle numeric or string IDs
     int? id;
     if (json['id'] != null) {
@@ -280,6 +296,7 @@ class Booking {
       lapanganData: lapanganData,
       jamMulai: jamMulai,
       jamSelesai: jamSelesai,
+      hargaDiskon: hargaDiskon,
     );
   }
 }

@@ -238,4 +238,10 @@ class AuthService {
       return null;
     }
   }
+
+  // Add this method to AuthService class
+  static void updateCachedToken(String token) {
+    _token = token;
+    print("Token updated in cache: ${token.substring(0, min(10, token.length))}...");
+  }
 }

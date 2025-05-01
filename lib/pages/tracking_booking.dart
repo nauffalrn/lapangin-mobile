@@ -446,8 +446,14 @@ class _TrackingBookingPageState extends State<TrackingBookingPage> {
                   Divider(height: 24),
                   _buildDetailRow("Tanggal", _booking!.tanggal ?? "Tidak tersedia"),
                   _buildDetailRow("Waktu", _booking!.waktu ?? "Tidak tersedia"),
-                  _buildDetailRow("Durasi", "${_booking!.jadwalList.length} jam"),
-                  _buildDetailRow("Total Harga", "Rp ${_booking!.totalPrice?.toStringAsFixed(0) ?? '0'}"),
+                  _buildDetailRow("Durasi", "${_calculateBookingDuration()} jam"),
+                  if (_booking!.kodePromo != null && _booking!.kodePromo!.isNotEmpty) ...[
+                    _buildDetailRow("Harga Awal", "Rp ${_booking!.totalPrice?.toStringAsFixed(0) ?? '0'}"),
+                    _buildDetailRow("Kode Promo", _booking!.kodePromo ?? "-"),
+                    _buildDetailRow("Total Harga", _getDiscountedPriceText()),
+                  ] else ...[
+                    _buildDetailRow("Total Harga", "Rp ${_booking!.totalPrice?.toStringAsFixed(0) ?? '0'}"),
+                  ],
                 ],
               ),
             ),
@@ -537,7 +543,8 @@ class _TrackingBookingPageState extends State<TrackingBookingPage> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  // Update the _buildDetailRow to handle both String and Widget values
+  Widget _buildDetailRow(String label, dynamic value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
@@ -554,13 +561,117 @@ class _TrackingBookingPageState extends State<TrackingBookingPage> {
             ),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
+            child: value is String 
+              ? Text(
+                  value,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                )
+              : value, // Use the widget directly if it's not a string
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _calculateBookingDuration() {
+    if (_booking == null) return "0";
+    
+    // Try to calculate from jadwalList first (most accurate)
+    if (_booking!.jadwalList.isNotEmpty) {
+      return _booking!.jadwalList.length.toString();
+    }
+    
+    // If jadwalList is empty, try to calculate from jamMulai and jamSelesai
+    if (_booking!.jamMulai != null && _booking!.jamSelesai != null) {
+      final duration = _booking!.jamSelesai! - _booking!.jamMulai!;
+      return duration.toString();
+    }
+    
+    // Last resort: try to parse from waktu string
+    if (_booking!.waktu != null) {
+      try {
+        final waktuParts = _booking!.waktu!.split("-");
+        if (waktuParts.length == 2) {
+          final startTimePart = waktuParts[0].trim();
+          final endTimePart = waktuParts[1].trim();
+          
+          final startHour = int.parse(startTimePart.split(":")[0]);
+          final endHour = int.parse(endTimePart.split(":")[0]);
+          
+          return (endHour - startHour).toString();
+        }
+      } catch (e) {
+        print("Error calculating duration from waktu: $e");
+      }
+    }
+    
+    // If all else fails
+    return "0";
+  }
+
+  String _formatPriceWithDiscount() {
+    if (_booking == null) return "Rp 0";
+    
+    // Get the base price and formatted string
+    double basePrice = _booking!.totalPrice ?? 0;
+    String formattedBasePrice = "Rp ${basePrice.toStringAsFixed(0)}";
+    
+    // Check if there was a promo applied
+    if (_booking!.kodePromo != null && _booking!.kodePromo!.isNotEmpty && _booking!.diskonPersen != null) {
+      // Calculate the discounted price
+      double discountAmount = basePrice * (_booking!.diskonPersen! / 100);
+      double finalPrice = basePrice - discountAmount;
+      
+      // Format with strikethrough on original price
+      return "Rp ${finalPrice.toStringAsFixed(0)} (${_booking!.diskonPersen}% off)";
+    } else if (_booking!.hargaDiskon != null && _booking!.hargaDiskon! > 0) {
+      // If we already have final discounted price saved
+      return "Rp ${_booking!.hargaDiskon!.toStringAsFixed(0)}";
+    }
+    
+    // No discount applied
+    return formattedBasePrice;
+  }
+
+  Widget _getDiscountedPriceText() {
+    if (_booking == null) return Text("Rp 0");
+    
+    double basePrice = _booking!.totalPrice ?? 0;
+    double discountedPrice = basePrice;
+    String discountInfo = "";
+    
+    // Calculate discounted price if we have discount percentage
+    if (_booking!.diskonPersen != null) {
+      double discountAmount = basePrice * (_booking!.diskonPersen! / 100);
+      discountedPrice = basePrice - discountAmount;
+      discountInfo = " (${_booking!.diskonPersen}% off)";
+    } 
+    // Or use pre-calculated hargaDiskon if available
+    else if (_booking!.hargaDiskon != null && _booking!.hargaDiskon! > 0) {
+      discountedPrice = _booking!.hargaDiskon!;
+      // Calculate percentage for display
+      double discountPercent = ((basePrice - discountedPrice) / basePrice) * 100;
+      discountInfo = " (${discountPercent.toStringAsFixed(0)}% off)";
+    }
+    
+    // Return a rich text with the discounted price
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        children: [
+          TextSpan(
+            text: "Rp ${discountedPrice.toStringAsFixed(0)}",
+            style: TextStyle(color: Colors.green),
+          ),
+          TextSpan(
+            text: discountInfo,
+            style: TextStyle(color: Colors.green.shade700, fontSize: 12),
           ),
         ],
       ),

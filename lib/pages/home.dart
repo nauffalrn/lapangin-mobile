@@ -267,7 +267,7 @@ class _HomePageState extends State<HomePage> {
               radius: 22,
               backgroundColor: Colors.white,
               backgroundImage: profileImage != null && profileImage.isNotEmpty
-                  ? NetworkImage('${ApiConfig.baseUrl}/profile/images/$profileImage')
+                  ? NetworkImage(ApiConfig.getProfileImageUrl(profileImage))
                   : null,
               child: profileImage == null || profileImage.isEmpty
                   ? Icon(Icons.person, size: 30, color: Color(0xFF0A192F))

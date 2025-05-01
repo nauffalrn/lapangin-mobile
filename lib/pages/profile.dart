@@ -19,20 +19,11 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _profileImageUrl;
   bool _isLoading = true;
   File? _imageFile;
-  final _usernameController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-  bool _isEditingUsername = false;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
-  }
-  
-  @override
-  void dispose() {
-    _usernameController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -49,7 +40,6 @@ class _ProfilePageState extends State<ProfilePage> {
         _email = prefs.getString('email') ?? '';
         _phoneNumber = prefs.getString('phone_number') ?? '';
         _profileImageUrl = prefs.getString('profile_image');
-        _usernameController.text = _username;
       });
 
       // Then try to fetch fresh data from server
@@ -171,52 +161,6 @@ class _ProfilePageState extends State<ProfilePage> {
       },
     );
   }
-  
-  Future<void> _updateUsername() async {
-    if (!_formKey.currentState!.validate()) return;
-    
-    setState(() {
-      _isLoading = true;
-    });
-    
-    try {
-      // Send the new username to your server - WITHOUT token check
-      await ProfileService.updateUsername(_usernameController.text);
-      
-      setState(() {
-        _username = _usernameController.text;
-        _isEditingUsername = false;
-        _isLoading = false;
-      });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Username berhasil diperbarui'))
-      );
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      
-      // If the error contains "login" or "unauthorized", redirect to login
-      if (e.toString().toLowerCase().contains('login') || 
-          e.toString().toLowerCase().contains('auth') ||
-          e.toString().toLowerCase().contains('unauth')) {
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sesi anda habis. Silakan login kembali.'))
-        );
-        
-        // Logout and redirect to login
-        await AuthService.logout();
-        Navigator.pushReplacementNamed(context, '/login');
-      } else {
-        // For other errors, just show the error message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memperbarui username: $e'))
-        );
-      }
-    }
-  }
 
   Future<void> _logout() async {
     try {
@@ -260,7 +204,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         backgroundImage: (_imageFile != null) 
                             ? FileImage(_imageFile!) 
                             : (_profileImageUrl != null && _profileImageUrl!.isNotEmpty)
-                                ? NetworkImage('${ApiConfig.baseUrl}/profile/images/${_profileImageUrl}') as ImageProvider
+                                ? NetworkImage(ApiConfig.getProfileImageUrl(_profileImageUrl)) as ImageProvider
                                 : null,
                         child: (_imageFile == null && (_profileImageUrl == null || _profileImageUrl!.isEmpty))
                             ? Text(
@@ -298,61 +242,14 @@ class _ProfilePageState extends State<ProfilePage> {
                 
                 SizedBox(height: 20),
                 
-                // Username with edit option
-                Form(
-                  key: _formKey,
-                  child: _isEditingUsername 
-                    ? Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _usernameController,
-                              decoration: InputDecoration(
-                                labelText: 'Username',
-                                border: OutlineInputBorder(),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Username tidak boleh kosong';
-                                }
-                                if (value.length < 3) {
-                                  return 'Username minimal 3 karakter';
-                                }
-                                return null;
-                              },
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.check, color: Colors.green),
-                            onPressed: _updateUsername,
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.close, color: Colors.red),
-                            onPressed: () {
-                              setState(() {
-                                _usernameController.text = _username;
-                                _isEditingUsername = false;
-                              });
-                            },
-                          ),
-                        ],
-                      )
-                    : Card(
-                        elevation: 2,
-                        child: ListTile(
-                          leading: Icon(Icons.person, color: Color(0xFF0A192F)),
-                          title: Text('Username'),
-                          subtitle: Text(_username),
-                          trailing: IconButton(
-                            icon: Icon(Icons.edit, color: Color(0xFF0A192F)),
-                            onPressed: () {
-                              setState(() {
-                                _isEditingUsername = true;
-                              });
-                            },
-                          ),
-                        ),
-                      ),
+                // Username (read-only)
+                Card(
+                  elevation: 2,
+                  child: ListTile(
+                    leading: Icon(Icons.person, color: Color(0xFF0A192F)),
+                    title: Text('Username'),
+                    subtitle: Text(_username),
+                  ),
                 ),
                 
                 SizedBox(height: 10),

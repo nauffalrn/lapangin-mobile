@@ -22,6 +22,14 @@ class ApiConfig {
     return "$baseUrl/lapangan/image/$imagePath?token=$token";
   }
 
+  // Add a specific method for profile images that uses the correct path
+  static String getProfileImageUrl(String? imageName) {
+    if (imageName == null || imageName.isEmpty) return "";
+    
+    // Use the correct path that matches your backend storage location
+    return "$baseUrl/profile/images/$imageName";
+  }
+
   // Helper untuk mengambil headers dengan token
   // Update the getAuthHeaders method to add session cookie support if needed
   static Future<Map<String, String>> getAuthHeaders() async {

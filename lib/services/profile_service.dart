@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
+import 'package:mobile/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
 
@@ -23,12 +24,29 @@ class ProfileService {
         if (responseData is Map && responseData.containsKey('success')) {
           // It's wrapped in a Response object
           if (responseData['success'] == true && responseData['data'] != null) {
-            return responseData['data'];
+            final userData = responseData['data'];
+            // Save the data to SharedPreferences for persistence
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('name', userData['name'] ?? '');
+            await prefs.setString('username', userData['username'] ?? '');
+            await prefs.setString('email', userData['email'] ?? '');
+            await prefs.setString('phone_number', userData['phoneNumber'] ?? '');
+            await prefs.setString('profile_image', userData['profileImage'] ?? '');
+            
+            return userData;
           } else {
             throw Exception(responseData['message'] ?? 'Failed to load profile data');
           }
         } else {
           // It's a direct Customer object
+          // Save the data to SharedPreferences for persistence
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('name', responseData['name'] ?? '');
+          await prefs.setString('username', responseData['username'] ?? '');
+          await prefs.setString('email', responseData['email'] ?? '');
+          await prefs.setString('phone_number', responseData['phoneNumber'] ?? '');
+          await prefs.setString('profile_image', responseData['profileImage'] ?? '');
+          
           return responseData;
         }
       } else if (response.statusCode == 401) {
@@ -163,6 +181,13 @@ class ProfileService {
         if (responseData['success'] == true && responseData['data'] != null) {
           final imageUrl = responseData['data']['profileImage'] ?? '';
           await prefs.setString('profile_image', imageUrl);
+          
+          // Check if the response includes a new token and save it
+          if (responseData['data']['token'] != null) {
+            await prefs.setString('auth_token', responseData['data']['token']);
+            AuthService.updateCachedToken(responseData['data']['token']);
+          }
+          
           return imageUrl;
         } else {
           throw Exception(responseData['message'] ?? 'Invalid response format');
@@ -172,6 +197,78 @@ class ProfileService {
       }
     } catch (e) {
       print("Error uploading profile image: $e");
+      throw e;
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateProfile({
+    String? name,
+    String? email,
+    String? phoneNumber,
+  }) async {
+    try {
+      print("Updating profile data...");
+      
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      
+      if (token == null || token.isEmpty) {
+        throw Exception('Not authenticated. Please login first.');
+      }
+      
+      final url = '${ApiConfig.baseUrl}/profile/update-profile';
+      
+      // Create form data
+      var request = http.MultipartRequest('POST', Uri.parse(url));
+      
+      // Add auth header
+      request.headers['Authorization'] = 'Bearer $token';
+      
+      // Add fields if provided
+      if (name != null && name.isNotEmpty) {
+        request.fields['name'] = name;
+      }
+      
+      if (email != null && email.isNotEmpty) {
+        request.fields['email'] = email;
+      }
+      
+      if (phoneNumber != null && phoneNumber.isNotEmpty) {
+        request.fields['phoneNumber'] = phoneNumber;
+      }
+      
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+      
+      print("Update profile response status: ${response.statusCode}");
+      
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        if (responseData['success'] == true && responseData['data'] != null) {
+          final userData = responseData['data'];
+          
+          // Update SharedPreferences with new data
+          if (name != null && name.isNotEmpty) {
+            await prefs.setString('name', name);
+          }
+          
+          if (email != null && email.isNotEmpty) {
+            await prefs.setString('email', email);
+          }
+          
+          if (phoneNumber != null && phoneNumber.isNotEmpty) {
+            await prefs.setString('phone_number', phoneNumber);
+          }
+          
+          return userData;
+        } else {
+          throw Exception(responseData['message'] ?? 'Invalid response format');
+        }
+      } else {
+        throw Exception('Failed to update profile: ${response.statusCode}');
+      }
+    } catch (e) {
+      print("Error updating profile: $e");
       throw e;
     }
   }
