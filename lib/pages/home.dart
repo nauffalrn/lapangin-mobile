@@ -214,19 +214,59 @@ class _HomePageState extends State<HomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildPromoDiscount(),
                     _buildSearchBar(),
-                    _buildSectionHeader(context, "Rekomendasi Lapangan"),
-                    _buildGridList(
-                      _filteredLapanganList.take(jumlahTampil).toList(),
-                    ),
-                    if (jumlahTampil < _filteredLapanganList.length)
-                      _buildLoadMoreButton(),
-                    const SizedBox(height: 20),
-                    _buildSectionHeader(context, "Lapangan Rating Tertinggi"),
-                    _buildHorizontalLazyList(
-                      _getSortedByRating(_filteredLapanganList),
-                    ),
+                    
+                    // Tambahkan tampilan untuk lapangan tidak ditemukan
+                    if (_searchQuery.isNotEmpty && _filteredLapanganList.isEmpty)
+                      Center(
+                        child: Column(
+                          children: [
+                            SizedBox(height: 40),
+                            Icon(
+                              Icons.search_off,
+                              size: 70,
+                              color: Colors.grey[400],
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              "Lapangan Tidak Ditemukan",
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              "Coba masukkan kata kunci lain",
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                            SizedBox(height: 40),
+                          ],
+                        ),
+                      )
+                    else
+                      // Tampilan konten yang sudah ada
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildPromoDiscount(),
+                          _buildSectionHeader(context, "Rekomendasi Lapangan"),
+                          _buildGridList(
+                            _filteredLapanganList.take(jumlahTampil).toList(),
+                          ),
+                          if (jumlahTampil < _filteredLapanganList.length)
+                            _buildLoadMoreButton(),
+                          const SizedBox(height: 20),
+                          _buildSectionHeader(context, "Lapangan Rating Tertinggi"),
+                          _buildHorizontalLazyList(
+                            _getSortedByRating(_filteredLapanganList),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -776,16 +816,9 @@ class _HomePageState extends State<HomePage> {
       } else {
         _filteredLapanganList = lapanganList
             .where(
-              (lapangan) =>
-                  lapangan.nama.toLowerCase().contains(
-                        query.toLowerCase(),
-                      ) ||
-                  lapangan.jenis.toLowerCase().contains(
-                        query.toLowerCase(),
-                      ) ||
-                  lapangan.alamat.toLowerCase().contains(
-                        query.toLowerCase(),
-                      ),
+              (lapangan) => lapangan.nama.toLowerCase().contains(
+                    query.toLowerCase(),
+                  ),
             )
             .toList();
       }
