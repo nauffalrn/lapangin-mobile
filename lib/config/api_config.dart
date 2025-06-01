@@ -3,50 +3,58 @@ import '../services/auth_service.dart';
 import 'dart:math';
 
 class ApiConfig {
-  // Jika dijalankan di perangkat fisik
   static const baseUrl = "http://192.168.100.8:8181/api";
 
-  // Perbaikan URL gambar - mencoba URL alternatif
   static String getImageUrl(String? imagePath) {
     if (imagePath == null || imagePath.isEmpty) return "";
-
-    // Coba URL tanpa path /files/ - dari controllernya langsung
     return "$baseUrl/lapangan/image/$imagePath";
   }
 
-  // Method untuk mendapatkan URL gambar dengan token
   static Future<String> getImageUrlWithToken(String? imagePath) async {
     if (imagePath == null || imagePath.isEmpty) return "";
-
     final token = await AuthService.getToken();
     return "$baseUrl/lapangan/image/$imagePath?token=$token";
   }
 
-  // Add a specific method for profile images that uses the correct path
-  static String getProfileImageUrl(String? imageName) {
+  // Profile image URL dengan token
+  static Future<String> getProfileImageUrl(String? imageName) async {
     if (imageName == null || imageName.isEmpty) return "";
-    
-    // Use the correct path that matches your backend storage location
+
+    final token = await AuthService.getToken();
+    if (token != null && token.isNotEmpty) {
+      return "$baseUrl/profile/images/$imageName?token=$token";
+    }
+
     return "$baseUrl/profile/images/$imageName";
   }
 
-  // Helper untuk mengambil headers dengan token
-  // Update the getAuthHeaders method to add session cookie support if needed
+  // Synchronous version for backward compatibility
+  static String getProfileImageUrlSync(String? imageName) {
+    if (imageName == null || imageName.isEmpty) return "";
+    return "$baseUrl/profile/images/$imageName";
+  }
+
+  static Future<String> getProfileImageUrlWithToken(String? imageName) async {
+    if (imageName == null || imageName.isEmpty) return "";
+    final token = await AuthService.getToken();
+    return "$baseUrl/profile/images/$imageName?token=$token";
+  }
+
   static Future<Map<String, String>> getAuthHeaders() async {
     final token = await AuthService.getToken();
-    if (token == null) {
-      // Untuk debugging
+    if (token == null || token.isEmpty) {
       print("WARNING: getAuthHeaders found no auth token!");
-      // Kembalikan header tanpa token
-      return {'Content-Type': 'application/json'};
+      return {
+        'Content-Type': 'application/json',
+      }; // Return headers tanpa Authorization
     }
 
-    // Untuk debugging
-    print(
-      "Using auth token in getAuthHeaders: ${token.substring(0, min(10, token.length))}...",
-    );
+    final tokenLength = token.length;
+    final previewLength = min(10, tokenLength);
+    final tokenPreview =
+        tokenLength > 0 ? token.substring(0, previewLength) : 'empty';
+    print("Using auth token in getAuthHeaders: $tokenPreview...");
 
-    // Tambahkan Accept header
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
@@ -54,30 +62,56 @@ class ApiConfig {
     };
   }
 
-  // Use this method instead of the regular getAuthHeaders for critical operations
+  // Headers untuk image loading
+  static Future<Map<String, String>> getImageHeaders() async {
+    final token = await AuthService.getToken();
+    if (token == null) {
+      return {};
+    }
+
+    return {'Authorization': 'Bearer $token', 'Accept': 'image/*'};
+  }
+
+  static Future<Map<String, String>> getAuthHeadersForMultipart() async {
+    final token = await AuthService.getToken();
+    if (token == null) {
+      print("WARNING: getAuthHeaders found no auth token!");
+      return {};
+    }
+
+    final tokenLength = token.length;
+    final previewLength = min(10, tokenLength);
+    final tokenPreview =
+        tokenLength > 0 ? token.substring(0, previewLength) : 'empty';
+    print("Using auth token for multipart: $tokenPreview...");
+
+    return {'Authorization': 'Bearer $token', 'Accept': 'application/json'};
+  }
+
+  // PERBAIKAN: Ganti ensureFreshToken() dengan getToken()
   static Future<Map<String, String>> getAuthHeadersWithRefresh() async {
-    final token =
-        await AuthService.ensureFreshToken(); // This validates the token
+    final token = await AuthService.getToken();
     if (token == null || token.isEmpty) {
-      print("WARNING: No auth token found after refresh attempt!");
+      print("WARNING: No auth token found!");
       throw Exception('Not authenticated. Please login first.');
     }
 
-    print(
-      "Using auth token after refresh: ${token.substring(0, min(10, token.length))}...",
-    );
+    final tokenLength = token.length;
+    final previewLength = min(10, tokenLength);
+    final tokenPreview =
+        tokenLength > 0 ? token.substring(0, previewLength) : 'empty';
+    print("Using auth token: $tokenPreview...");
+
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
     };
   }
 
-  // Method to fetch reviews for a specific lapangan
   static String getReviewsUrl(int lapanganId) {
     return "$baseUrl/booking/reviews/$lapanganId";
   }
 
-  // Method to post a new review
   static String getAddReviewUrl() {
     return "$baseUrl/review";
   }

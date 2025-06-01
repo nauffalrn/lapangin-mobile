@@ -69,7 +69,10 @@ class BookingService {
 
   static Future<Booking> createBooking(Booking booking) async {
     try {
-      final token = await AuthService.ensureFreshToken();
+      print("Creating booking for lapangan ID: ${booking.lapanganId}");
+
+      // PERBAIKAN: Ganti ensureFreshToken() dengan getToken()
+      final token = await AuthService.getToken();
 
       if (token == null || token.isEmpty) {
         throw Exception('Authentication token not found. Please login again.');
@@ -475,7 +478,8 @@ class BookingService {
   // Tambahkan fungsi ini di class BookingService
   static Future<void> cancelBooking(int bookingId) async {
     try {
-      final token = await AuthService.ensureFreshToken();
+      // PERBAIKAN: Ganti ensureFreshToken() dengan getToken()
+      final token = await AuthService.getToken();
 
       if (token == null || token.isEmpty) {
         throw Exception('Authentication token not found. Please login again.');
@@ -500,7 +504,8 @@ class BookingService {
             onTimeout:
                 () =>
                     throw TimeoutException(
-                      'Connection timed out. Please try again.',
+                      'Request timeout. Please check your connection.',
+                      const Duration(seconds: 15),
                     ),
           );
 

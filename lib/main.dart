@@ -15,8 +15,9 @@ void main() async {
   // Initial auth check
   bool isLoggedIn = false;
   try {
-    final token = await AuthService.ensureFreshToken();
-    isLoggedIn = token != null;
+    // PERBAIKAN: Ganti ensureFreshToken() dengan getToken()
+    final token = await AuthService.getToken();
+    isLoggedIn = token != null && token.isNotEmpty;
     print("User is logged in: $isLoggedIn");
   } catch (e) {
     print("Error initializing auth: $e");
@@ -29,13 +30,15 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   final bool isLoggedIn;
-  
+
   const MyApp({Key? key, required this.isLoggedIn}) : super(key: key);
-  
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      title: 'Lapangin Mobile App',
+      theme: ThemeData(primarySwatch: Colors.blue),
       initialRoute: isLoggedIn ? '/' : '/login',
       routes: {
         '/login': (context) => const SignInPage2(),
@@ -44,7 +47,10 @@ class MyApp extends StatelessWidget {
         '/profile': (context) => ProfilePage(),
         '/register': (context) => const RegisterPage(),
         '/forgotpassword': (context) => const ForgotPasswordPage(),
-        '/tracking': (context) => TrackingBookingPage(bookingId: ModalRoute.of(context)!.settings.arguments as int),
+        '/tracking':
+            (context) => TrackingBookingPage(
+              bookingId: ModalRoute.of(context)!.settings.arguments as int,
+            ),
         '/active-bookings': (context) => ActiveBookingsPage(),
       },
     );

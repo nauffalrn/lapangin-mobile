@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'profile.dart';
 import 'detail.dart';
@@ -20,7 +22,7 @@ class _HomePageState extends State<HomePage> {
   List<Lapangan> _filteredLapanganList = [];
   bool _isLoading = false;
   int jumlahTampil = 4;
-  
+
   // Tambahkan variabel untuk promo
   List<Promo> _availablePromos = [];
   bool _isLoadingPromos = false;
@@ -62,19 +64,19 @@ class _HomePageState extends State<HomePage> {
       );
     }
   }
-  
+
   // Method untuk mengambil promo yang tersedia
   Future<void> _fetchPromos() async {
     setState(() {
       _isLoadingPromos = true;
     });
-    
+
     try {
       final promos = await PromoService.getActivePromos();
-      
+
       // Filter hanya promo yang masih valid
       final validPromos = promos.where((promo) => promo.isValid).toList();
-      
+
       setState(() {
         _availablePromos = validPromos;
         _isLoadingPromos = false;
@@ -86,29 +88,31 @@ class _HomePageState extends State<HomePage> {
       });
     }
   }
-  
+
   // Method untuk memuat promo yang sudah diklaim
   Future<void> _loadClaimedPromos() async {
     // Cek apakah user sudah login
     final isLoggedIn = await AuthService.isLoggedIn();
     if (!isLoggedIn) return;
-    
+
     try {
       // Coba ambil promo yang sudah diklaim
       final claimedPromos = await PromoService.getUserClaimedPromos();
-      
+
       // Simpan ID promo yang sudah diklaim
       setState(() {
         _claimedPromoIds = claimedPromos.map((promo) => promo.id).toSet();
       });
-      
+
       // Simpan ke SharedPreferences untuk persistensi
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList('claimed_promo_ids', 
-        _claimedPromoIds.map((id) => id.toString()).toList());
+      await prefs.setStringList(
+        'claimed_promo_ids',
+        _claimedPromoIds.map((id) => id.toString()).toList(),
+      );
     } catch (e) {
       print("Error loading claimed promos: $e");
-      
+
       // Fallback ke data tersimpan lokal
       final prefs = await SharedPreferences.getInstance();
       final savedIds = prefs.getStringList('claimed_promo_ids') ?? [];
@@ -117,64 +121,70 @@ class _HomePageState extends State<HomePage> {
       });
     }
   }
-  
+
   // Method untuk mengklaim promo
   Future<void> _claimPromo(Promo promo) async {
     // Cek apakah user sudah login
     final isLoggedIn = await AuthService.isLoggedIn();
     if (!isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Silakan login terlebih dahulu untuk mengklaim promo'))
+        SnackBar(
+          content: Text('Silakan login terlebih dahulu untuk mengklaim promo'),
+        ),
       );
-      
+
       // Navigasi ke halaman login
       Navigator.pushNamed(context, '/login');
       return;
     }
-    
+
     // Tampilkan loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => Center(child: CircularProgressIndicator()),
     );
-    
+
     try {
       // Klaim promo
       final success = await PromoService.claimPromo(promo.kodePromo);
-      
+
       // Tutup dialog loading
       Navigator.pop(context);
-      
+
       if (success) {
         // Tambahkan ID promo ke set promo yang sudah diklaim
         setState(() {
           _claimedPromoIds.add(promo.id);
         });
-        
+
         // Simpan ke SharedPreferences
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setStringList('claimed_promo_ids', 
-          _claimedPromoIds.map((id) => id.toString()).toList());
-        
+        await prefs.setStringList(
+          'claimed_promo_ids',
+          _claimedPromoIds.map((id) => id.toString()).toList(),
+        );
+
         // Tampilkan pesan sukses
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Promo berhasil diklaim! Gunakan saat booking lapangan.'),
+            content: Text(
+              'Promo berhasil diklaim! Gunakan saat booking lapangan.',
+            ),
             backgroundColor: Colors.green,
-          )
+          ),
         );
       }
     } catch (e) {
       // Tutup dialog loading
       Navigator.pop(context);
-      
+
       // Tampilkan pesan error
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Gagal mengklaim promo: ${e.toString()}'),
           backgroundColor: Colors.red,
-        )
+        ),
       );
     }
   }
@@ -207,69 +217,77 @@ class _HomePageState extends State<HomePage> {
           centerTitle: true,
           actions: [_buildProfileIcon()],
         ),
-        body: _isLoading
-            ? Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSearchBar(),
-                    
-                    // Tambahkan tampilan untuk lapangan tidak ditemukan
-                    if (_searchQuery.isNotEmpty && _filteredLapanganList.isEmpty)
-                      Center(
-                        child: Column(
+        body:
+            _isLoading
+                ? Center(child: CircularProgressIndicator())
+                : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSearchBar(),
+
+                      // Tambahkan tampilan untuk lapangan tidak ditemukan
+                      if (_searchQuery.isNotEmpty &&
+                          _filteredLapanganList.isEmpty)
+                        Center(
+                          child: Column(
+                            children: [
+                              SizedBox(height: 40),
+                              Icon(
+                                Icons.search_off,
+                                size: 70,
+                                color: Colors.grey[400],
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                "Lapangan Tidak Ditemukan",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                "Coba masukkan kata kunci lain",
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                              SizedBox(height: 40),
+                            ],
+                          ),
+                        )
+                      else
+                        // Tampilan konten yang sudah ada
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(height: 40),
-                            Icon(
-                              Icons.search_off,
-                              size: 70,
-                              color: Colors.grey[400],
+                            _buildPromoDiscount(),
+                            _buildSectionHeader(
+                              context,
+                              "Rekomendasi Lapangan",
                             ),
-                            SizedBox(height: 16),
-                            Text(
-                              "Lapangan Tidak Ditemukan",
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey[600],
-                              ),
+                            _buildGridList(
+                              _filteredLapanganList.take(jumlahTampil).toList(),
                             ),
-                            SizedBox(height: 8),
-                            Text(
-                              "Coba masukkan kata kunci lain",
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[500],
-                              ),
+                            if (jumlahTampil < _filteredLapanganList.length)
+                              _buildLoadMoreButton(),
+                            const SizedBox(height: 20),
+                            _buildSectionHeader(
+                              context,
+                              "Lapangan Rating Tertinggi",
                             ),
-                            SizedBox(height: 40),
+                            _buildHorizontalLazyList(
+                              _getSortedByRating(_filteredLapanganList),
+                            ),
                           ],
                         ),
-                      )
-                    else
-                      // Tampilan konten yang sudah ada
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildPromoDiscount(),
-                          _buildSectionHeader(context, "Rekomendasi Lapangan"),
-                          _buildGridList(
-                            _filteredLapanganList.take(jumlahTampil).toList(),
-                          ),
-                          if (jumlahTampil < _filteredLapanganList.length)
-                            _buildLoadMoreButton(),
-                          const SizedBox(height: 20),
-                          _buildSectionHeader(context, "Lapangan Rating Tertinggi"),
-                          _buildHorizontalLazyList(
-                            _getSortedByRating(_filteredLapanganList),
-                          ),
-                        ],
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
         bottomNavigationBar: const CustomBottomNavigationBar(currentIndex: 0),
       ),
     );
@@ -277,46 +295,154 @@ class _HomePageState extends State<HomePage> {
 
   // Update this method to show the actual profile picture
   Widget _buildProfileIcon() {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context, 
-          MaterialPageRoute(builder: (context) => ProfilePage()),
-        ).then((_) {
-          // Refresh when coming back from profile
-          setState(() {});
-        });
-      },
-      child: Padding(
-        padding: const EdgeInsets.only(right: 16.0),
-        child: FutureBuilder<SharedPreferences>(
-          future: SharedPreferences.getInstance(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return CircleAvatar(
-                radius: 22,
-                backgroundColor: Colors.white,
-                child: Icon(Icons.person, size: 30, color: Color(0xFF0A192F)),
-              );
-            }
-            
-            final prefs = snapshot.data!;
-            final profileImage = prefs.getString('profile_image');
-            
-            return CircleAvatar(
-              radius: 22,
-              backgroundColor: Colors.white,
-              backgroundImage: profileImage != null && profileImage.isNotEmpty
-                  ? NetworkImage(ApiConfig.getProfileImageUrl(profileImage))
-                  : null,
-              child: profileImage == null || profileImage.isEmpty
-                  ? Icon(Icons.person, size: 30, color: Color(0xFF0A192F))
-                  : null,
-            );
+    return FutureBuilder<String?>(
+      future: _getActualProfileImage(),
+      builder: (context, snapshot) {
+        String? profileImageUrl = snapshot.data;
+        bool hasProfileImage =
+            profileImageUrl != null && profileImageUrl.isNotEmpty;
+
+        return InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => ProfilePage()),
+            ).then((_) {
+              if (mounted) {
+                setState(() {}); // Refresh home page
+              }
+            });
           },
-        ),
-      ),
+          child: Container(
+            margin: EdgeInsets.only(right: 16),
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.white,
+              child:
+                  hasProfileImage
+                      ? FutureBuilder<Map<String, String>>(
+                        future: ApiConfig.getAuthHeaders(),
+                        builder: (context, headerSnapshot) {
+                          if (headerSnapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF0A192F),
+                            );
+                          }
+
+                          // PERBAIKAN: Cek jika headers kosong (tidak ada token)
+                          final headers = headerSnapshot.data ?? {};
+                          if (headers.isEmpty ||
+                              !headers.containsKey('Authorization')) {
+                            // Tidak ada token, tampilkan icon default
+                            return Icon(
+                              Icons.person,
+                              color: Color(0xFF0A192F),
+                              size: 20,
+                            );
+                          }
+
+                          return ClipOval(
+                            child: Image.network(
+                              ApiConfig.getProfileImageUrlSync(
+                                profileImageUrl!,
+                              ),
+                              width: 36,
+                              height: 36,
+                              fit: BoxFit.cover,
+                              headers: headers,
+                              errorBuilder: (context, error, stackTrace) {
+                                print(
+                                  "Error loading profile image in home: $error",
+                                );
+                                return Icon(
+                                  Icons.person,
+                                  color: Color(0xFF0A192F),
+                                  size: 20,
+                                );
+                              },
+                              loadingBuilder: (
+                                context,
+                                child,
+                                loadingProgress,
+                              ) {
+                                if (loadingProgress == null) return child;
+                                return CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF0A192F),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      )
+                      : Icon(Icons.person, color: Color(0xFF0A192F), size: 20),
+            ),
+          ),
+        );
+      },
     );
+  }
+
+  // TAMBAH method baru untuk fetch profile image dari database:
+  Future<String?> _getActualProfileImage() async {
+    try {
+      // Cek dulu apakah user sudah login
+      final token = await AuthService.getToken();
+      if (token == null || token.isEmpty) {
+        return null;
+      }
+
+      // Fetch profil dari database
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/profile/user'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          final profileImage = data['data']['profileImage'];
+          final serverUsername = data['data']['username'];
+
+          // PERBAIKAN: Cek apakah ini user yang sama
+          final prefs = await SharedPreferences.getInstance();
+          final localUsername = prefs.getString('username');
+
+          if (localUsername != serverUsername) {
+            print(
+              "User mismatch detected! Local: $localUsername, Server: $serverUsername",
+            );
+            // Clear profile image karena user berbeda
+            await prefs.remove('profile_image');
+            return null;
+          }
+
+          // Update SharedPreferences dengan data terbaru HANYA jika user sama
+          if (profileImage != null && profileImage.toString().isNotEmpty) {
+            await prefs.setString('profile_image', profileImage);
+            return profileImage;
+          } else {
+            await prefs.remove('profile_image');
+            return null;
+          }
+        }
+      }
+
+      return null;
+    } catch (e) {
+      print("Error fetching actual profile image: $e");
+      // Fallback ke SharedPreferences HANYA jika tidak ada error auth
+      if (!e.toString().contains('401')) {
+        final prefs = await SharedPreferences.getInstance();
+        return prefs.getString('profile_image');
+      }
+      return null;
+    }
   }
 
   Widget _buildSectionHeader(BuildContext context, String title) {
@@ -360,28 +486,35 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: Text(_searchQuery.isEmpty ? "Rekomendasi Lapangan" : "Hasil Pencarian"),
-            backgroundColor: Color(0xFF0A192F),
-            foregroundColor: Colors.white,
-          ),
-          body: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.8,
+        builder:
+            (context) => Scaffold(
+              appBar: AppBar(
+                title: Text(
+                  _searchQuery.isEmpty
+                      ? "Rekomendasi Lapangan"
+                      : "Hasil Pencarian",
+                ),
+                backgroundColor: Color(0xFF0A192F),
+                foregroundColor: Colors.white,
               ),
-              itemCount: _filteredLapanganList.length, // Use filtered list instead of full list
-              itemBuilder: (context, index) {
-                return _buildLapanganCard(_filteredLapanganList[index]);
-              },
+              body: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: GridView.builder(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.8,
+                  ),
+                  itemCount:
+                      _filteredLapanganList
+                          .length, // Use filtered list instead of full list
+                  itemBuilder: (context, index) {
+                    return _buildLapanganCard(_filteredLapanganList[index]);
+                  },
+                ),
+              ),
             ),
-          ),
-        ),
       ),
     );
   }
@@ -391,28 +524,31 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: Text("Lapangan Rating Tertinggi"),
-            backgroundColor: Color(0xFF0A192F),
-            foregroundColor: Colors.white,
-          ),
-          body: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.8,
+        builder:
+            (context) => Scaffold(
+              appBar: AppBar(
+                title: Text("Lapangan Rating Tertinggi"),
+                backgroundColor: Color(0xFF0A192F),
+                foregroundColor: Colors.white,
               ),
-              itemCount: _getSortedByRating(_filteredLapanganList).length,
-              itemBuilder: (context, index) {
-                return _buildLapanganCard(_getSortedByRating(_filteredLapanganList)[index]);
-              },
+              body: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: GridView.builder(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.8,
+                  ),
+                  itemCount: _getSortedByRating(_filteredLapanganList).length,
+                  itemBuilder: (context, index) {
+                    return _buildLapanganCard(
+                      _getSortedByRating(_filteredLapanganList)[index],
+                    );
+                  },
+                ),
+              ),
             ),
-          ),
-        ),
       ),
     );
   }
@@ -463,6 +599,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // Lengkapi method _buildHorizontalLapanganCard:
   Widget _buildHorizontalLapanganCard(Lapangan lapangan) {
     return GestureDetector(
       onTap: () {
@@ -495,27 +632,28 @@ class _HomePageState extends State<HomePage> {
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(15),
               ),
-              child: lapangan.gambar != null && lapangan.gambar!.isNotEmpty
-                  ? Image.network(
-                      ApiConfig.getImageUrl(lapangan.gambar),
-                      height: 90,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Image.asset(
-                          'assets/logo.png',
-                          height: 90,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        );
-                      },
-                    )
-                  : Image.asset(
-                      'assets/logo.png',
-                      height: 90,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
+              child:
+                  lapangan.gambar != null && lapangan.gambar!.isNotEmpty
+                      ? Image.network(
+                        ApiConfig.getImageUrl(lapangan.gambar),
+                        height: 90,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Image.asset(
+                            'assets/logo.png',
+                            height: 90,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          );
+                        },
+                      )
+                      : Image.asset(
+                        'assets/logo.png',
+                        height: 90,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
             ),
             Padding(
               padding: const EdgeInsets.all(8.0),
@@ -534,18 +672,11 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 3),
                   Row(
                     children: [
-                      const Icon(
-                        Icons.star,
-                        color: Colors.orange,
-                        size: 12,
-                      ),
+                      const Icon(Icons.star, color: Colors.orange, size: 12),
                       const SizedBox(width: 2),
                       Text(
                         "${lapangan.rating?.toStringAsFixed(1) ?? '0.0'} (${lapangan.reviews ?? 0})",
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 10, color: Colors.grey[600]),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -601,44 +732,45 @@ class _HomePageState extends State<HomePage> {
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(15),
               ),
-              child: lapangan.gambar != null && lapangan.gambar!.isNotEmpty
-                  ? FutureBuilder<Map<String, String>>(
-                      future: ApiConfig.getAuthHeaders(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return Container(
-                            height: 100,
-                            width: double.infinity,
-                            color: Colors.grey.shade200,
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-
-                        return Image.network(
-                          ApiConfig.getImageUrl(lapangan.gambar),
-                          height: 100,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          headers: snapshot.data,
-                          errorBuilder: (context, error, stackTrace) {
-                            print("Error loading image: $error");
-                            return Image.asset(
-                              'assets/logo.png',
+              child:
+                  lapangan.gambar != null && lapangan.gambar!.isNotEmpty
+                      ? FutureBuilder<Map<String, String>>(
+                        future: ApiConfig.getAuthHeaders(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return Container(
                               height: 100,
                               width: double.infinity,
-                              fit: BoxFit.cover,
+                              color: Colors.grey.shade200,
+                              child: Center(child: CircularProgressIndicator()),
                             );
-                          },
-                        );
-                      },
-                    )
-                  : Image.asset(
-                      'assets/logo.png',
-                      height: 100,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
+                          }
+
+                          return Image.network(
+                            ApiConfig.getImageUrl(lapangan.gambar),
+                            height: 100,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            headers: snapshot.data ?? {},
+                            errorBuilder: (context, error, stackTrace) {
+                              print("Error loading image: $error");
+                              return Image.asset(
+                                'assets/logo.png',
+                                height: 100,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              );
+                            },
+                          );
+                        },
+                      )
+                      : Image.asset(
+                        'assets/logo.png',
+                        height: 100,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
             ),
             Padding(
               padding: const EdgeInsets.all(10.0),
@@ -701,19 +833,20 @@ class _HomePageState extends State<HomePage> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-    
+
     // Filter promo yang belum diklaim
-    final availablePromos = _availablePromos
-        .where((promo) => !_claimedPromoIds.contains(promo.id))
-        .toList();
-    
+    final availablePromos =
+        _availablePromos
+            .where((promo) => !_claimedPromoIds.contains(promo.id))
+            .toList();
+
     if (availablePromos.isEmpty) {
       return SizedBox.shrink(); // Tidak tampilkan apa-apa jika tidak ada promo
     }
-    
+
     // Ambil promo pertama yang belum diklaim untuk ditampilkan
     final promo = availablePromos.first;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16.0),
       padding: const EdgeInsets.all(16.0),
@@ -774,12 +907,22 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-  
+
   // Helper method untuk format tanggal
   String _formatDate(DateTime date) {
     final monthNames = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-      'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Ags',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
     ];
     return "${date.day} ${monthNames[date.month - 1]} ${date.year}";
   }
@@ -814,19 +957,21 @@ class _HomePageState extends State<HomePage> {
       if (query.isEmpty) {
         _filteredLapanganList = List.from(lapanganList);
       } else {
-        _filteredLapanganList = lapanganList
-            .where(
-              (lapangan) => lapangan.nama.toLowerCase().contains(
-                    query.toLowerCase(),
-                  ),
-            )
-            .toList();
+        _filteredLapanganList =
+            lapanganList
+                .where(
+                  (lapangan) =>
+                      lapangan.nama.toLowerCase().contains(query.toLowerCase()),
+                )
+                .toList();
       }
-      
+
       // Reset jumlahTampil to default when searching
       jumlahTampil = 4;
     });
   }
+
+  // Update _buildSearchBar method:
 
   Widget _buildSearchBar() {
     return Container(
@@ -866,24 +1011,25 @@ class _HomePageState extends State<HomePage> {
                 size: 24,
               ),
             ),
-            suffixIcon: _searchQuery.isNotEmpty
-                ? InkWell(
-                    borderRadius: BorderRadius.circular(30),
-                    onTap: () {
-                      _searchController.clear();
-                      _searchLapangan('');
-                      FocusScope.of(context).unfocus();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Icon(
-                        Icons.close,
-                        color: Colors.grey[600],
-                        size: 20,
+            suffixIcon:
+                _searchQuery.isNotEmpty
+                    ? InkWell(
+                      borderRadius: BorderRadius.circular(30),
+                      onTap: () {
+                        _searchController.clear();
+                        _searchLapangan('');
+                        FocusScope.of(context).unfocus();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Icon(
+                          Icons.clear,
+                          color: Colors.grey[600],
+                          size: 20,
+                        ),
                       ),
-                    ),
-                  )
-                : null,
+                    )
+                    : null,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,

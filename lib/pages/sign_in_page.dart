@@ -3,6 +3,9 @@ import 'home.dart';
 import 'register.dart';
 import '../services/auth_service.dart';
 import '../models/auth_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 
 class SignInPage2 extends StatelessWidget {
   const SignInPage2({Key? key}) : super(key: key);
@@ -93,6 +96,50 @@ class __FormContentState extends State<_FormContent> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _loginController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _usernameController =
+      TextEditingController(); // Tambahkan controller untuk username
+
+  @override
+  void initState() {
+    super.initState();
+    // HAPUS auto-load credentials
+    // _loadSavedCredentials(); <- HAPUS INI
+    _checkAutoLogin();
+  }
+
+  // HAPUS method _loadSavedCredentials completely
+
+  // Update method _checkAutoLogin:
+  Future<void> _checkAutoLogin() async {
+    try {
+      final token = await AuthService.getToken();
+
+      // HANYA cek token, JANGAN auto re-login
+      if (token != null && token.isNotEmpty && mounted) {
+        // Test apakah token masih valid
+        try {
+          final testResponse = await http
+              .get(
+                Uri.parse('${ApiConfig.baseUrl}/profile/user'),
+                headers: {
+                  'Authorization': 'Bearer $token',
+                  'Accept': 'application/json',
+                },
+              )
+              .timeout(Duration(seconds: 5));
+
+          if (testResponse.statusCode == 200 && mounted) {
+            Navigator.of(context).pushReplacementNamed('/');
+          }
+        } catch (e) {
+          print("Token validation failed: $e");
+          // Token invalid, biarkan user login manual
+        }
+      }
+    } catch (e) {
+      print("Auto-login check failed: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -209,60 +256,98 @@ class __FormContentState extends State<_FormContent> {
                 onPressed: () async {
                   if (_formKey.currentState?.validate() ?? false) {
                     try {
+                      print("=== LOGIN BUTTON PRESSED ===");
+                      print("Username: ${_loginController.text}");
+                      print(
+                        "Password length: ${_passwordController.text.length}",
+                      );
+
                       // Show loading spinner
                       showDialog(
                         context: context,
                         barrierDismissible: false,
                         builder: (BuildContext dialogContext) {
-                          return const Center(child: CircularProgressIndicator());
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
                         },
                       );
 
                       final loginRequest = LoginRequest(
-                        username: _loginController.text,
-                        password: _passwordController.text,
+                        username: _loginController.text.trim(),
+                        password:
+                            _passwordController.text, // JANGAN trim password
+                      );
+
+                      print(
+                        "Creating login request with username: ${loginRequest.username}",
                       );
 
                       try {
-                        // Add both timeout and response size protection
-                        await AuthService.login(loginRequest)
-                            .timeout(
-                              const Duration(seconds: 15),
-                              onTimeout: () => throw Exception("Login timed out. Please try again."),
-                            );
-                        
-                        // Check if widget is still mounted before using context
+                        await AuthService.login(loginRequest).timeout(
+                          const Duration(seconds: 15),
+                          onTimeout:
+                              () =>
+                                  throw Exception(
+                                    "Login timed out. Please try again.",
+                                  ),
+                        );
+
                         if (!mounted) return;
-                        
+
                         // Close the loading dialog
                         Navigator.of(context).pop();
-                        
+
+                        print("=== LOGIN SUCCESS - NAVIGATING ===");
+
                         // Navigate to home page
-                        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                        Navigator.of(
+                          context,
+                        ).pushNamedAndRemoveUntil('/', (route) => false);
                       } catch (e) {
-                        // Check if widget is still mounted before using context
                         if (!mounted) return;
-                        
+
                         // Close the loading dialog
                         Navigator.of(context).pop();
-                        
-                        // Specific error message for out of memory errors
+
+                        print("=== LOGIN FAILED ===");
+                        print("Error details: $e");
+
                         String errorMessage = e.toString();
-                        if (errorMessage.contains('Out of Memory')) {
-                          errorMessage = 'Server response too large. Please contact support.';
+
+                        // Extract meaningful error message
+                        if (errorMessage.contains(
+                          'Username atau password salah',
+                        )) {
+                          errorMessage =
+                              'Username atau password salah.\n\nPastikan:\n• Username benar\n• Password benar\n• Tidak ada spasi ekstra';
+                        } else if (errorMessage.contains('401')) {
+                          errorMessage =
+                              'Login ditolak server. Periksa username dan password Anda.';
+                        } else if (errorMessage.contains('timeout')) {
+                          errorMessage =
+                              'Koneksi timeout. Periksa internet Anda dan coba lagi.';
                         }
-                        
-                        // Then show error
+
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Login failed: $errorMessage')),
+                          SnackBar(
+                            content: Text(errorMessage),
+                            backgroundColor: Colors.red,
+                            duration: Duration(seconds: 5),
+                          ),
                         );
                       }
                     } catch (e) {
-                      // This catch block is for dialog-related errors
                       if (!mounted) return;
-                      
+
+                      print("=== UNEXPECTED ERROR ===");
+                      print("Error: $e");
+
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
+                        SnackBar(
+                          content: Text('Error tidak terduga: ${e.toString()}'),
+                          backgroundColor: Colors.red,
+                        ),
                       );
                     }
                   }

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math'; // Tambahkan import untuk min()
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_config.dart';
@@ -24,43 +24,18 @@ class AuthService {
     return _token;
   }
 
-  // Tambahkan metode ini untuk mendapatkan token dengan persistensi yang lebih baik
-  static Future<String?> getTokenWithRefresh() async {
-    // Coba ambil token yang ada
-    final token = await getToken();
-
-    // Jika token ada, gunakan
-    if (token != null && token.isNotEmpty) {
-      return token;
-    }
-
-    // Coba refresh token jika tidak ada
-    final success = await reAuthenticate();
-    if (success) {
-      return getToken();
-    }
-
-    // Jika refresh gagal, kembalikan null
-    return null;
-  }
-
-  // Metode ini akan dipanggil di semua service yang memerlukan autentikasi
-  static Future<Map<String, String>> getAuthHeadersWithRefresh() async {
-    final token = await getTokenWithRefresh();
-
-    if (token == null || token.isEmpty) {
-      return {'Content-Type': 'application/json'};
-    }
-
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    };
+  static Future<void> saveToken(String token) async {
+    _token = token;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_token', token);
+    print(
+      "Token saved successfully: ${token.substring(0, min(10, token.length))}...",
+    );
   }
 
   static Future<bool> isLoggedIn() async {
     final token = await getToken();
-    return token != null;
+    return token != null && token.isNotEmpty;
   }
 
   static Future<User> register(RegisterRequest request) async {
@@ -92,9 +67,15 @@ class AuthService {
     }
   }
 
-  // Ganti seluruh metode login dengan kode berikut:
+  // Update method login dengan proteksi data yang lebih baik:
   static Future<void> login(LoginRequest loginRequest) async {
     try {
+      print("=== LOGIN PROCESS START ===");
+      print("Username: ${loginRequest.username}");
+
+      // BERSIHKAN cache token yang mungkin corrupt
+      _token = null;
+
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/auth/login'),
         headers: {'Content-Type': 'application/json'},
@@ -108,140 +89,158 @@ class AuthService {
         final data = json.decode(response.body);
 
         if (data['success'] == true && data['data'] != null) {
-          // Debug log untuk melihat respon lengkap
           print("Login response data: ${data['data']}");
 
-          // Token dalam format baru
           final responseData = data['data'];
           final token = responseData['token'];
-          if (token == null) {
+
+          if (token == null || token.isEmpty) {
             print("Token tidak ditemukan dalam respon");
             throw Exception('Token tidak ditemukan dalam respon');
           }
 
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('auth_token', token);
-          await prefs.setString('username', loginRequest.username);
+          // SIMPAN TOKEN DULU
+          await saveToken(token);
+          print("Token saved successfully");
 
-          _token = token;
+          final prefs = await SharedPreferences.getInstance();
+
+          // PERBAIKAN KRITIS: CEK APAKAH INI USER YANG BERBEDA
+          final currentStoredUsername = prefs.getString('username');
+          final newUsername = responseData['user']?['username'];
+
+          bool isDifferentUser =
+              currentStoredUsername != null &&
+              newUsername != null &&
+              currentStoredUsername != newUsername;
+
+          if (isDifferentUser) {
+            print("=== DIFFERENT USER DETECTED ===");
+            print("Previous user: $currentStoredUsername");
+            print("New user: $newUsername");
+
+            // HAPUS SEMUA DATA USER SEBELUMNYA
+            await prefs.remove('username');
+            await prefs.remove('name');
+            await prefs.remove('email');
+            await prefs.remove('phone_number');
+            await prefs.remove(
+              'profile_image',
+            ); // PENTING: Hapus profile image user lama
+
+            print("Cleared previous user data");
+          }
+
+          // UPDATE USER DATA DENGAN DATA BARU
+          if (responseData['user'] != null) {
+            final userData = responseData['user'];
+
+            // Update user data dengan aman
+            if (userData['username'] != null) {
+              await prefs.setString('username', userData['username']);
+              print("Updated username: ${userData['username']}");
+            }
+
+            if (userData['name'] != null) {
+              await prefs.setString('name', userData['name']);
+              print("Updated name: ${userData['name']}");
+            }
+
+            if (userData['email'] != null) {
+              await prefs.setString('email', userData['email']);
+              print("Updated email: ${userData['email']}");
+            }
+
+            if (userData['phoneNumber'] != null) {
+              await prefs.setString('phone_number', userData['phoneNumber']);
+              print("Updated phone_number: ${userData['phoneNumber']}");
+            }
+
+            // PERBAIKAN KRITIS: Profile image handling yang benar
+            if (userData['profileImage'] != null &&
+                userData['profileImage'].toString().isNotEmpty &&
+                userData['profileImage'].toString() != 'null') {
+              // User ini memang punya profile image
+              await prefs.setString('profile_image', userData['profileImage']);
+              print(
+                "Set profile image for this user: ${userData['profileImage']}",
+              );
+            } else {
+              // User ini tidak punya profile image
+              await prefs.remove('profile_image');
+              print("This user has no profile image - cleared storage");
+            }
+          }
+
+          print('=== LOGIN SUCCESSFUL ===');
           print(
-            'Token disimpan: ${_token!.substring(0, min(10, _token!.length))}...',
+            'Token saved: ${_token!.substring(0, min(10, _token!.length))}...',
           );
         } else {
           throw Exception(data['message'] ?? 'Login gagal');
         }
       } else {
-        throw Exception('Login gagal: ${response.statusCode}');
+        final errorData = json.decode(response.body);
+        String errorMessage =
+            errorData['message'] ?? 'Login gagal: ${response.statusCode}';
+        print("=== LOGIN FAILED ===");
+        print("Error message: $errorMessage");
+        throw Exception(errorMessage);
       }
     } catch (e) {
-      print("Error during login: $e");
+      print("=== LOGIN ERROR ===");
+      print("Error: $e");
       throw e;
     }
   }
 
-  // Update the logout method to clear all user data
-  static Future<void> logout() async {
-    _token = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
-    await prefs.remove('user_id');
-    await prefs.remove('username');
-    await prefs.remove('name');
-    await prefs.remove('email');
-    await prefs.remove('phone_number');
-    await prefs.remove('profile_image');
-  }
-
-  static Future<bool> reAuthenticate() async {
+  // PERBAIKAN: Logout yang HANYA menghapus token
+  static Future<void> logout({bool clearAllData = false}) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      print("Starting logout process...");
 
-      // Dapatkan token yang tersimpan
-      final token = prefs.getString('auth_token');
-      if (token != null) {
-        _token = token;
-        return true; // Token sudah ada, gunakan saja
+      if (clearAllData) {
+        await clearAllUserData();
+      } else {
+        _token = null;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('auth_token');
       }
 
-      // Jika tidak ada token, coba login kembali dengan username
-      final String? username = prefs.getString('username');
-      if (username == null) {
-        return false;
-      }
-
-      // Kita tidak menyimpan password hash, jadi tidak bisa re-login otomatis
-      // User perlu login manual kembali
-      return false;
+      print("User logged out successfully");
     } catch (e) {
-      print("Re-authentication failed: $e");
-      return false;
+      print("Error during logout: $e");
     }
   }
 
-  // Add this method to AuthService
-
-  // Method to check token validity and refresh if needed
-  static Future<String?> ensureFreshToken() async {
+  static Future<void> clearAllUserData() async {
     try {
+      print("Clearing all user data...");
+
+      _token = null;
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
 
-      if (token == null || token.isEmpty) {
-        print("No token found, need to login");
-        return null;
-      }
+      // Hapus semua data terkait user
+      await prefs.remove('auth_token');
+      await prefs.remove('username');
+      await prefs.remove('name');
+      await prefs.remove('email');
+      await prefs.remove('phone_number');
+      await prefs.remove('profile_image');
 
-      print(
-        "Using cached token: ${token.substring(0, min(10, token.length))}...",
-      );
+      // Hapus juga data lain yang mungkin ada
+      await prefs.remove('claimed_promo_ids');
 
-      // Check token validity using your new endpoint
-      try {
-        print("Checking token validity...");
-        final response = await http
-            .get(
-              Uri.parse('${ApiConfig.baseUrl}/api/booking/check-token'),
-              headers: {'Authorization': 'Bearer $token'},
-            )
-            .timeout(Duration(seconds: 5));
-
-        print("Token check response: ${response.statusCode}");
-        print("Token check body: ${response.body}");
-
-        if (response.statusCode == 200) {
-          // Parse response to check token validity details
-          final Map<String, dynamic> data = jsonDecode(response.body);
-
-          if (data['success'] == true &&
-              data['data'] != null &&
-              data['data']['token_valid'] == true) {
-            print("Token is valid");
-            return token;
-          } else {
-            print("Token validation failed: ${data['data']}");
-            // Token invalid, clear and return null
-            await logout();
-            return null;
-          }
-        } else {
-          print("Token check failed with status: ${response.statusCode}");
-          // Return existing token anyway - might work
-          return token;
-        }
-      } catch (e) {
-        print("Error checking token: $e");
-        // Return existing token if unable to check
-        return token;
-      }
+      print("All user data cleared successfully");
     } catch (e) {
-      print("Error ensuring fresh token: $e");
-      return null;
+      print("Error clearing user data: $e");
     }
   }
 
-  // Add this method to AuthService class
   static void updateCachedToken(String token) {
     _token = token;
-    print("Token updated in cache: ${token.substring(0, min(10, token.length))}...");
+    print(
+      "Token updated in cache: ${token.substring(0, min(10, token.length))}...",
+    );
   }
 }
