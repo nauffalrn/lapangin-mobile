@@ -344,44 +344,27 @@ class _TrackingBookingPageState extends State<TrackingBookingPage> {
 
   // Update method _openInGoogleMaps untuk konsisten dengan detail page
   Future<void> _openInGoogleMaps() async {
-    print("Opening Google Maps...");
+    print("Opening Google Maps from tracking page...");
     print("Booking data: ${_booking?.lapanganData}");
-    print("Latitude from getter: ${_booking?.lapanganLatitude}");
-    print("Longitude from getter: ${_booking?.lapanganLongitude}");
+    print("Latitude: ${_booking?.lapanganLatitude}");
+    print("Longitude: ${_booking?.lapanganLongitude}");
     print("Nama lapangan: ${_booking?.namaLapangan}");
     print("Lokasi: ${_booking?.lokasi}");
 
-    // Cek apakah koordinat tersedia dari getter
+    // Dapatkan koordinat dari booking
     double? lat = _booking?.lapanganLatitude;
     double? lng = _booking?.lapanganLongitude;
 
-    if (lat != null && lng != null) {
-      print("Using coordinates for Google Maps: $lat, $lng");
+    // Buat nama tempat lengkap untuk pencarian
+    String placeName = "${_booking?.namaLapangan ?? ''} ${_booking?.lokasi ?? ''}".trim();
 
-      // PERBAIKAN: Gunakan method yang sama seperti di detail page
-      // yang menampilkan lokasi dan rute TANPA memulai navigasi otomatis
-      await MapsService.openInGoogleMapsWithLocation(
-        context: context,
-        latitude: lat,
-        longitude: lng,
-        placeName: _booking?.namaLapangan,
-      );
-    } else {
-      print("No coordinates available, using search query");
-      // Fallback: buka Google Maps dengan nama lapangan dan alamat
-      String query =
-          "${_booking?.namaLapangan ?? ''} ${_booking?.lokasi ?? ''}".trim();
-      if (query.isNotEmpty) {
-        await MapsService.openInGoogleMapsWithQuery(
-          context: context,
-          query: query,
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Informasi lokasi tidak tersedia')),
-        );
-      }
-    }
+    // Gunakan method yang sudah diupdate dengan validasi koordinat
+    await MapsService.openInGoogleMapsWithLocation(
+      context: context,
+      latitude: lat,
+      longitude: lng,
+      placeName: placeName.isNotEmpty ? placeName : null,
+    );
   }
 
   @override

@@ -419,21 +419,17 @@ class _DetailPageState extends State<DetailPage> {
 
   // Update method _openInGoogleMaps di detail page
   Future<void> _openInGoogleMaps() async {
-    // Cek apakah koordinat tersedia
-    if (widget.lapangan.latitude == null || widget.lapangan.longitude == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Koordinat lokasi tidak tersedia')),
-      );
-      return;
-    }
+    print("Opening Google Maps from detail page...");
+    print("Lapangan: ${widget.lapangan.nama}");
+    print("Alamat: ${widget.lapangan.alamat}");
+    print("Coordinates: ${widget.lapangan.latitude}, ${widget.lapangan.longitude}");
 
-    // PERBAIKAN: Gunakan method yang menampilkan lokasi dengan rute,
-    // bukan yang langsung memulai navigasi
+    // Gunakan method yang sudah diupdate dengan validasi koordinat
     await MapsService.openInGoogleMapsWithLocation(
       context: context,
       latitude: widget.lapangan.latitude,
       longitude: widget.lapangan.longitude,
-      placeName: widget.lapangan.nama,
+      placeName: "${widget.lapangan.nama} ${widget.lapangan.alamat ?? ''}".trim(),
     );
   }
 
@@ -456,18 +452,7 @@ class _DetailPageState extends State<DetailPage> {
           Padding(
             padding: const EdgeInsets.only(top: 8.0),
             child: ElevatedButton.icon(
-              onPressed:
-                  widget.lapangan.latitude != null &&
-                          widget.lapangan.longitude != null
-                      ? _openInGoogleMaps
-                      : () {
-                        // Fallback: buka Google Maps dengan nama lapangan
-                        MapsService.openInGoogleMapsWithQuery(
-                          context: context,
-                          query:
-                              "${widget.lapangan.nama} ${widget.lapangan.alamat ?? ''}",
-                        );
-                      },
+              onPressed: _openInGoogleMaps, // Selalu aktif karena ada fallback
               icon: Icon(Icons.directions),
               label: Text("Buka di Google Maps"),
               style: ElevatedButton.styleFrom(
