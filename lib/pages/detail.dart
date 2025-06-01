@@ -51,7 +51,7 @@ class _DetailPageState extends State<DetailPage> {
       firstDate: DateTime.now(),
       lastDate: DateTime(2101),
     );
-    
+
     if (picked != null) {
       setState(() {
         selectedDate = picked;
@@ -130,9 +130,9 @@ class _DetailPageState extends State<DetailPage> {
   // Update _selectTime method to support multiple selections
   void _selectTime(BuildContext context) {
     if (_timeSlots.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Tidak ada slot waktu tersedia'))
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Tidak ada slot waktu tersedia')));
       return;
     }
 
@@ -164,10 +164,11 @@ class _DetailPageState extends State<DetailPage> {
                         final slot = _timeSlots[index];
                         final bool isPast = slot['isPast'] ?? false;
                         final bool isAvailable = slot['isAvailable'] ?? true;
-                        
+
                         // Check if this slot is selected
                         final bool isSelected = _selectedTimeSlots.any(
-                          (selectedSlot) => selectedSlot['waktu'] == slot['waktu']
+                          (selectedSlot) =>
+                              selectedSlot['waktu'] == slot['waktu'],
                         );
 
                         // Determine text color based on status
@@ -182,10 +183,13 @@ class _DetailPageState extends State<DetailPage> {
                           title: Text(
                             slot['waktu'],
                             style: TextStyle(
-                              color: textColor ?? (isSelected ? Colors.blue : null),
-                              fontWeight: isAvailable && !isPast
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
+                              color:
+                                  textColor ??
+                                  (isSelected ? Colors.blue : null),
+                              fontWeight:
+                                  isAvailable && !isPast
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
                             ),
                           ),
                           subtitle: Text(
@@ -195,24 +199,27 @@ class _DetailPageState extends State<DetailPage> {
                             style: TextStyle(color: textColor),
                           ),
                           value: isSelected,
-                          onChanged: isAvailable && !isPast
-                              ? (bool? value) {
-                                  setState(() {
-                                    if (value == true) {
-                                      // Add to selected slots
-                                      _selectedTimeSlots.add(slot);
-                                    } else {
-                                      // Remove from selected slots
-                                      _selectedTimeSlots.removeWhere(
-                                        (selectedSlot) => selectedSlot['waktu'] == slot['waktu']
-                                      );
-                                    }
-                                  });
-                                  
-                                  // Also update the parent state
-                                  this.setState(() {});
-                                }
-                              : null,
+                          onChanged:
+                              isAvailable && !isPast
+                                  ? (bool? value) {
+                                    setState(() {
+                                      if (value == true) {
+                                        // Add to selected slots
+                                        _selectedTimeSlots.add(slot);
+                                      } else {
+                                        // Remove from selected slots
+                                        _selectedTimeSlots.removeWhere(
+                                          (selectedSlot) =>
+                                              selectedSlot['waktu'] ==
+                                              slot['waktu'],
+                                        );
+                                      }
+                                    });
+
+                                    // Also update the parent state
+                                    this.setState(() {});
+                                  }
+                                  : null,
                           activeColor: Colors.blue,
                         );
                       },
@@ -237,12 +244,13 @@ class _DetailPageState extends State<DetailPage> {
                   ),
                   SizedBox(height: 8),
                   ElevatedButton(
-                    onPressed: _selectedTimeSlots.isNotEmpty
-                        ? () {
-                            Navigator.pop(context);
-                            this.setState(() {});
-                          }
-                        : null,
+                    onPressed:
+                        _selectedTimeSlots.isNotEmpty
+                            ? () {
+                              Navigator.pop(context);
+                              this.setState(() {});
+                            }
+                            : null,
                     child: Text("Konfirmasi Pilihan"),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
@@ -253,7 +261,7 @@ class _DetailPageState extends State<DetailPage> {
                 ],
               ),
             );
-          }
+          },
         );
       },
     );
@@ -276,7 +284,7 @@ class _DetailPageState extends State<DetailPage> {
   // Add a method to get formatted selected time slots for display
   String get _formattedSelectedTimes {
     if (_selectedTimeSlots.isEmpty) return "Pilih Jam";
-    
+
     // Sort slots by time
     List<Map<String, dynamic>> sortedSlots = List.from(_selectedTimeSlots);
     sortedSlots.sort((a, b) {
@@ -284,133 +292,137 @@ class _DetailPageState extends State<DetailPage> {
       int hourB = int.parse(b['waktu'].split(':')[0]);
       return hourA.compareTo(hourB);
     });
-    
+
     // Create text with format: "09:00-10:00, 11:00-12:00, 13:00-14:00"
-    return sortedSlots.map((slot) {
-      String startHour = slot['waktu'];
-      int hour = int.parse(startHour.split(':')[0]);
-      String endHour = "${hour + 1}:00";
-      return "$startHour-$endHour";
-    }).join(", ");
+    return sortedSlots
+        .map((slot) {
+          String startHour = slot['waktu'];
+          int hour = int.parse(startHour.split(':')[0]);
+          String endHour = "${hour + 1}:00";
+          return "$startHour-$endHour";
+        })
+        .join(", ");
   }
 
   // Update the _createBooking method with better error handling
 
-Future<void> _createBooking() async {
-  if (selectedDate == null || _selectedTimeSlots.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Silakan pilih tanggal dan minimal 1 jam'))
-    );
-    return;
-  }
-
-  try {
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Center(child: CircularProgressIndicator()),
-    );
-
-    // Create jadwalItems from selected slots
-    List<JadwalItem> jadwalItems = [];
-    
-    // IMPORTANT: DO NOT sort slots - preserve the original selection order
-    // This prevents backend from assuming consecutive slots
-    for (var slot in _selectedTimeSlots) {
-      // Extract hour from time string
-      int jamBooking = int.parse(slot['waktu'].split(':')[0]);
-      
-      // Get price from slot - PERBAIKAN DISINI
-      var hargaValue = slot['harga'];
-      double harga = hargaValue is int ? hargaValue.toDouble() : 
-                     hargaValue is double ? hargaValue : 
-                     (widget.lapangan.hargaSewa ?? 0.0); // Tambahkan null check
-                     
-      jadwalItems.add(JadwalItem(jam: jamBooking, harga: harga));
+  Future<void> _createBooking() async {
+    if (selectedDate == null || _selectedTimeSlots.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Silakan pilih tanggal dan minimal 1 jam')),
+      );
+      return;
     }
 
-    // PERBAIKAN: Tambahkan nama lapangan dan lokasi dari widget lapangan
-    // Hitung totalPrice
-    double totalPrice = 0;
-    for (var item in jadwalItems) {
-      totalPrice += item.harga;
-    }
-    
-    final booking = Booking(
-      lapanganId: widget.lapangan.id,
-      namaLapangan: widget.lapangan.nama, // Tambahkan nama lapangan
-      lokasi: widget.lapangan.alamat,     // Tambahkan alamat/lokasi
-      tanggal: DateFormat('yyyy-MM-dd').format(selectedDate!),
-      jadwalList: jadwalItems,
-      totalPrice: totalPrice  // Tambahkan total price sejak awal
-    );
-    
-    print("Creating booking for lapangan ID: ${booking.lapanganId}");
-    print("Lapangan name: ${booking.namaLapangan}");
-    print("Location: ${booking.lokasi}");
-    print("Date: ${booking.tanggal}");
-    print("Time slots: ${jadwalItems.length} slots");
-    
-    // Create the booking with direct token handling
-    final result = await BookingService.createBooking(booking);
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(child: CircularProgressIndicator()),
+      );
 
-    // Close loading dialog
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context);
-    }
+      // Create jadwalItems from selected slots
+      List<JadwalItem> jadwalItems = [];
 
-    // Navigate to payment page with booking data
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PembayaranPage(booking: result),
-      ),
-    ).then((value) {
-      // Refresh state when returning from payment page
-      setState(() {
-        _selectedTimeSlots = [];
-        selectedDate = null;
+      // IMPORTANT: DO NOT sort slots - preserve the original selection order
+      // This prevents backend from assuming consecutive slots
+      for (var slot in _selectedTimeSlots) {
+        // Extract hour from time string
+        int jamBooking = int.parse(slot['waktu'].split(':')[0]);
+
+        // Get price from slot - PERBAIKAN DISINI
+        var hargaValue = slot['harga'];
+        double harga =
+            hargaValue is int
+                ? hargaValue.toDouble()
+                : hargaValue is double
+                ? hargaValue
+                : (widget.lapangan.hargaSewa ?? 0.0); // Tambahkan null check
+
+        jadwalItems.add(JadwalItem(jam: jamBooking, harga: harga));
+      }
+
+      // PERBAIKAN: Tambahkan nama lapangan dan lokasi dari widget lapangan
+      // Hitung totalPrice
+      double totalPrice = 0;
+      for (var item in jadwalItems) {
+        totalPrice += item.harga;
+      }
+
+      final booking = Booking(
+        lapanganId: widget.lapangan.id,
+        namaLapangan: widget.lapangan.nama, // Tambahkan nama lapangan
+        lokasi: widget.lapangan.alamat, // Tambahkan alamat/lokasi
+        tanggal: DateFormat('yyyy-MM-dd').format(selectedDate!),
+        jadwalList: jadwalItems,
+        totalPrice: totalPrice, // Tambahkan total price sejak awal
+      );
+
+      print("Creating booking for lapangan ID: ${booking.lapanganId}");
+      print("Lapangan name: ${booking.namaLapangan}");
+      print("Location: ${booking.lokasi}");
+      print("Date: ${booking.tanggal}");
+      print("Time slots: ${jadwalItems.length} slots");
+
+      // Create the booking with direct token handling
+      final result = await BookingService.createBooking(booking);
+
+      // Close loading dialog
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      // Navigate to payment page with booking data
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PembayaranPage(booking: result),
+        ),
+      ).then((value) {
+        // Refresh state when returning from payment page
+        setState(() {
+          _selectedTimeSlots = [];
+          selectedDate = null;
+        });
       });
-    });
-  } catch (e) {
-    // Close loading dialog
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context);
-    }
+    } catch (e) {
+      // Close loading dialog
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
 
-    String errorMessage = e.toString().toLowerCase();
-    
-    print("Booking error: $errorMessage");
-    
-    // Check for different authentication error patterns
-    if (errorMessage.contains('login') || 
-        errorMessage.contains('auth') ||
-        errorMessage.contains('unauth') ||
-        errorMessage.contains('expired') ||
-        errorMessage.contains('token')) {
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sesi anda habis. Silakan login kembali'))
-      );
-      
-      // Logout and redirect to login
-      await AuthService.logout();
-      Navigator.pushReplacementNamed(context, '/login');
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal membuat booking: $e'))
-      );
+      String errorMessage = e.toString().toLowerCase();
+
+      print("Booking error: $errorMessage");
+
+      // Check for different authentication error patterns
+      if (errorMessage.contains('login') ||
+          errorMessage.contains('auth') ||
+          errorMessage.contains('unauth') ||
+          errorMessage.contains('expired') ||
+          errorMessage.contains('token')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sesi anda habis. Silakan login kembali')),
+        );
+
+        // Logout and redirect to login
+        await AuthService.logout();
+        Navigator.pushReplacementNamed(context, '/login');
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal membuat booking: $e')));
+      }
     }
   }
-}
 
   // Update method _openInGoogleMaps yang sudah ada
   Future<void> _openInGoogleMaps() async {
     // Cek apakah koordinat tersedia
     if (widget.lapangan.latitude == null || widget.lapangan.longitude == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Koordinat lokasi tidak tersedia'))
+        SnackBar(content: Text('Koordinat lokasi tidak tersedia')),
       );
       return;
     }
@@ -442,15 +454,18 @@ Future<void> _createBooking() async {
           Padding(
             padding: const EdgeInsets.only(top: 8.0),
             child: ElevatedButton.icon(
-              onPressed: widget.lapangan.latitude != null && widget.lapangan.longitude != null
-                  ? _openInGoogleMaps
-                  : () {
-                      // Fallback: buka Google Maps dengan nama lapangan
-                      MapsService.openInGoogleMapsWithQuery(
-                        context: context,
-                        query: "${widget.lapangan.nama} ${widget.lapangan.alamat ?? ''}",
-                      );
-                    },
+              onPressed:
+                  widget.lapangan.latitude != null &&
+                          widget.lapangan.longitude != null
+                      ? _openInGoogleMaps
+                      : () {
+                        // Fallback: buka Google Maps dengan nama lapangan
+                        MapsService.openInGoogleMapsWithQuery(
+                          context: context,
+                          query:
+                              "${widget.lapangan.nama} ${widget.lapangan.alamat ?? ''}",
+                        );
+                      },
               icon: Icon(Icons.directions),
               label: Text("Buka di Google Maps"),
               style: ElevatedButton.styleFrom(
@@ -463,76 +478,82 @@ Future<void> _createBooking() async {
       ),
     );
   }
-  
-  Future<void> _fetchReviews({bool refresh = false}) async {
-  if (refresh) {
-    setState(() {
-      _reviewPage = 1;
-      _hasMoreReviews = true;
-      if (_isLoadingReviews) return; // Prevent multiple requests
-      _isLoadingReviews = true;
-    });
-  } else if (_isLoadingMoreReviews || !_hasMoreReviews) {
-    return; // Don't fetch if already loading more or no more data
-  } else {
-    setState(() {
-      _isLoadingMoreReviews = true;
-    });
-  }
 
-  try {
-    print("Fetching reviews for lapangan: ${widget.lapangan.id}, page: $_reviewPage");
-    
-    final reviews = await ReviewService.getReviewsByLapanganId(
-      widget.lapangan.id, 
-      page: _reviewPage,
-      size: _reviewsPerPage
-    ).timeout(
-      const Duration(seconds: 15),
-      onTimeout: () {
-        print("Review fetch timed out");
-        return [];
-      },
-    );
-    
-    print("Fetched ${reviews.length} reviews for page $_reviewPage");
-    
-    if (mounted) {
+  Future<void> _fetchReviews({bool refresh = false}) async {
+    if (refresh) {
       setState(() {
-        if (refresh) {
-          _reviews = reviews;
-        } else {
-          _reviews.addAll(reviews);
-        }
-        
-        // Check if we got fewer than requested - means end of data
-        _hasMoreReviews = reviews.length >= _reviewsPerPage;
-        
-        // Increment page for next fetch
-        _reviewPage++;
-        
-        _isLoadingReviews = false;
-        _isLoadingMoreReviews = false;
+        _reviewPage = 1;
+        _hasMoreReviews = true;
+        if (_isLoadingReviews) return; // Prevent multiple requests
+        _isLoadingReviews = true;
+      });
+    } else if (_isLoadingMoreReviews || !_hasMoreReviews) {
+      return; // Don't fetch if already loading more or no more data
+    } else {
+      setState(() {
+        _isLoadingMoreReviews = true;
       });
     }
-  } catch (e) {
-    print("Error fetching reviews: $e");
-    if (mounted) {
-      setState(() {
-        if (refresh) _reviews = [];
-        _isLoadingReviews = false;
-        _isLoadingMoreReviews = false;
-      });
-      
-      // Optional - show error only on initial fetch
-      if (refresh) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load reviews: ${e.toString().split('\n').first}')),
-        );
+
+    try {
+      print(
+        "Fetching reviews for lapangan: ${widget.lapangan.id}, page: $_reviewPage",
+      );
+
+      final reviews = await ReviewService.getReviewsByLapanganId(
+        widget.lapangan.id,
+        page: _reviewPage,
+        size: _reviewsPerPage,
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          print("Review fetch timed out");
+          return [];
+        },
+      );
+
+      print("Fetched ${reviews.length} reviews for page $_reviewPage");
+
+      if (mounted) {
+        setState(() {
+          if (refresh) {
+            _reviews = reviews;
+          } else {
+            _reviews.addAll(reviews);
+          }
+
+          // Check if we got fewer than requested - means end of data
+          _hasMoreReviews = reviews.length >= _reviewsPerPage;
+
+          // Increment page for next fetch
+          _reviewPage++;
+
+          _isLoadingReviews = false;
+          _isLoadingMoreReviews = false;
+        });
+      }
+    } catch (e) {
+      print("Error fetching reviews: $e");
+      if (mounted) {
+        setState(() {
+          if (refresh) _reviews = [];
+          _isLoadingReviews = false;
+          _isLoadingMoreReviews = false;
+        });
+
+        // Optional - show error only on initial fetch
+        if (refresh) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Failed to load reviews: ${e.toString().split('\n').first}',
+              ),
+            ),
+          );
+        }
       }
     }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -554,14 +575,18 @@ Future<void> _createBooking() async {
               width: double.infinity,
               decoration: BoxDecoration(
                 image: DecorationImage(
-                  image: widget.lapangan.image != null && widget.lapangan.image!.isNotEmpty
-                      ? NetworkImage(ApiConfig.getImageUrl(widget.lapangan.image))
-                      : AssetImage('assets/logo.png') as ImageProvider,
+                  image:
+                      widget.lapangan.image != null &&
+                              widget.lapangan.image!.isNotEmpty
+                          ? NetworkImage(
+                            ApiConfig.getImageUrl(widget.lapangan.image),
+                          )
+                          : AssetImage('assets/logo.png') as ImageProvider,
                   fit: BoxFit.cover,
                 ),
               ),
             ),
-            
+
             // Content
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -571,22 +596,19 @@ Future<void> _createBooking() async {
                   // Nama Lapangan
                   Text(
                     widget.lapangan.nama,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 8),
-                  
+
                   // Rating dan Reviews
                   Row(
                     children: [
                       Icon(Icons.star, color: Colors.orange, size: 20),
                       SizedBox(width: 4),
                       Text(
-                        widget.lapangan.rating != null 
-                          ? widget.lapangan.rating!.toStringAsFixed(1) 
-                          : '0.0',
+                        widget.lapangan.rating != null
+                            ? widget.lapangan.rating!.toStringAsFixed(1)
+                            : '0.0',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
@@ -595,15 +617,12 @@ Future<void> _createBooking() async {
                       SizedBox(width: 4),
                       Text(
                         '(${widget.lapangan.reviews ?? 0} reviews)',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                       ),
                     ],
                   ),
                   SizedBox(height: 8),
-                  
+
                   // Harga
                   Text(
                     'Rp ${widget.lapangan.hargaSewa?.toStringAsFixed(0) ?? '0'}/jam', // PERBAIKAN DISINI
@@ -614,7 +633,7 @@ Future<void> _createBooking() async {
                     ),
                   ),
                   SizedBox(height: 16),
-                  
+
                   // Lokasi
                   Text(
                     "Lokasi:",
@@ -628,15 +647,18 @@ Future<void> _createBooking() async {
                   Padding(
                     padding: const EdgeInsets.only(top: 8.0),
                     child: ElevatedButton.icon(
-                      onPressed: widget.lapangan.latitude != null && widget.lapangan.longitude != null
-                          ? _openInGoogleMaps
-                          : () {
-                              // Fallback: buka Google Maps dengan nama lapangan
-                              MapsService.openInGoogleMapsWithQuery(
-                                context: context,
-                                query: "${widget.lapangan.nama} ${widget.lapangan.alamat ?? ''}",
-                              );
-                            },
+                      onPressed:
+                          widget.lapangan.latitude != null &&
+                                  widget.lapangan.longitude != null
+                              ? _openInGoogleMaps
+                              : () {
+                                // Fallback: buka Google Maps dengan nama lapangan
+                                MapsService.openInGoogleMapsWithQuery(
+                                  context: context,
+                                  query:
+                                      "${widget.lapangan.nama} ${widget.lapangan.alamat ?? ''}",
+                                );
+                              },
                       icon: Icon(Icons.directions),
                       label: Text("Buka di Google Maps"),
                       style: ElevatedButton.styleFrom(
@@ -645,9 +667,9 @@ Future<void> _createBooking() async {
                       ),
                     ),
                   ),
-                  
+
                   SizedBox(height: 16),
-                  
+
                   // Cabang Olahraga
                   if (widget.lapangan.cabangOlahraga != null)
                     Column(
@@ -655,7 +677,10 @@ Future<void> _createBooking() async {
                       children: [
                         Text(
                           "Cabang Olahraga:",
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         SizedBox(height: 4),
                         Text(
@@ -665,7 +690,7 @@ Future<void> _createBooking() async {
                         SizedBox(height: 16),
                       ],
                     ),
-                
+
                   // Fasilitas
                   if (widget.lapangan.facilities != null)
                     Column(
@@ -673,7 +698,10 @@ Future<void> _createBooking() async {
                       children: [
                         Text(
                           "Fasilitas:",
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         SizedBox(height: 4),
                         Text(
@@ -683,15 +711,19 @@ Future<void> _createBooking() async {
                         SizedBox(height: 16),
                       ],
                     ),
-                
+
                   // Jam Operasional
-                  if (widget.lapangan.jamBuka != null && widget.lapangan.jamTutup != null)
+                  if (widget.lapangan.jamBuka != null &&
+                      widget.lapangan.jamTutup != null)
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           "Jam Operasional:",
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         SizedBox(height: 4),
                         Text(
@@ -701,39 +733,44 @@ Future<void> _createBooking() async {
                         SizedBox(height: 16),
                       ],
                     ),
-                
-                // BAGIAN BOOKING
-                _buildBookingSection(),
-                
-                SizedBox(height: 16),
-                
-                // Reviews Section
-                Text(
-                  'Reviews',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 10),
-                
-                RefreshIndicator(
-                  onRefresh: () async => await _fetchReviews(refresh: true),
-                  child: SingleChildScrollView(
-                    physics: AlwaysScrollableScrollPhysics(),
-                    child: _buildReviewsSection(),
+
+                  // BAGIAN BOOKING
+                  _buildBookingSection(),
+
+                  SizedBox(height: 16),
+
+                  // Reviews Section
+                  Text(
+                    'Reviews',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                ),
-                
-                SizedBox(height: 20),
-              ],
+                  SizedBox(height: 10),
+
+                  RefreshIndicator(
+                    onRefresh: () async => await _fetchReviews(refresh: true),
+                    child: SingleChildScrollView(
+                      physics: AlwaysScrollableScrollPhysics(),
+                      child: _buildReviewsSection(),
+                    ),
+                  ),
+
+                  SizedBox(height: 20),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 
   // Helper method for review items
-  Widget _buildReviewItem(String name, double rating, String comment, [String? date]) {
+  Widget _buildReviewItem(
+    String name,
+    double rating,
+    String comment, [
+    String? date,
+  ]) {
     return Container(
       padding: EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
@@ -785,29 +822,24 @@ Future<void> _createBooking() async {
   Widget _buildBookingSection() {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min, // Tambahkan ini
           children: [
             Text(
               "Booking",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 16),
-            
+            SizedBox(height: 12), // Kurangi dari 16 ke 12
             // Tanggal
             Text(
               "Pilih Tanggal:",
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
-            SizedBox(height: 8),
+            SizedBox(height: 6), // Kurangi dari 8 ke 6
             InkWell(
               onTap: () => _selectDate(context),
               child: Container(
@@ -830,43 +862,43 @@ Future<void> _createBooking() async {
                 ),
               ),
             ),
-            SizedBox(height: 16),
-            
+            SizedBox(height: 12), // Kurangi dari 16 ke 12
             // Jadwal
             Text(
               "Pilih Jam:",
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
-            SizedBox(height: 8),
+            SizedBox(height: 6), // Kurangi dari 8 ke 6
             _isLoadingSlots
                 ? Center(child: CircularProgressIndicator())
                 : _scheduleError != null
-                    ? Center(
-                        child: Text(
-                          _scheduleError!,
-                          style: TextStyle(color: Colors.red),
-                          textAlign: TextAlign.center,
-                        ),
-                      )
-                    : _buildTimeSlotGrid(),
-            
-            SizedBox(height: 16),
-            
+                ? Center(
+                  child: Text(
+                    _scheduleError!,
+                    style: TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+                : _buildTimeSlotGrid(),
+
+            SizedBox(height: 12), // Kurangi dari 16 ke 12
             // Jadwal terpilih dan total harga
             _buildSelectedTimeAndTotalPrice(),
-            
-            SizedBox(height: 16),
-            
+
+            SizedBox(height: 12), // Kurangi dari 16 ke 12
             // Tombol booking
             Container(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: (_selectedTimeSlots.isEmpty || selectedDate == null)
-                    ? null
-                    : _createBooking,
+                onPressed:
+                    (_selectedTimeSlots.isEmpty || selectedDate == null)
+                        ? null
+                        : _createBooking,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Color(0xFF0A192F),
-                  padding: EdgeInsets.symmetric(vertical: 14),
+                  padding: EdgeInsets.symmetric(
+                    vertical: 12,
+                  ), // Kurangi dari 14 ke 12
                 ),
                 child: Text(
                   "Book Sekarang",
@@ -886,88 +918,94 @@ Future<void> _createBooking() async {
 
   // Tambahkan metode untuk menampilkan grid waktu yang terlewat
   Widget _buildTimeSlotGrid() {
-    // Implementasi sesuai kebutuhan, misalnya:
     return GridView.builder(
       shrinkWrap: true,
       physics: NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 2.5,
+        crossAxisSpacing: 6, // Kurangi spacing
+        mainAxisSpacing: 6, // Kurangi spacing
+        childAspectRatio: 2.2, // Kecilkan dari 3.2 ke 2.2 agar tidak terpotong
       ),
       itemCount: _timeSlots.length,
       itemBuilder: (context, index) {
         final slot = _timeSlots[index];
         final bool isPast = slot['isPast'] ?? false;
         final bool isAvailable = slot['isAvailable'] ?? true;
-        
-        // Check if this slot is selected
+
         final bool isSelected = _selectedTimeSlots.any(
-          (selectedSlot) => selectedSlot['waktu'] == slot['waktu']
+          (selectedSlot) => selectedSlot['waktu'] == slot['waktu'],
         );
 
         return InkWell(
-          onTap: isAvailable && !isPast 
-            ? () {
-                setState(() {
-                  if (isSelected) {
-                    // Remove if already selected
-                    _selectedTimeSlots.removeWhere(
-                      (selectedSlot) => selectedSlot['waktu'] == slot['waktu']
-                    );
-                  } else {
-                    // Add if not selected
-                    _selectedTimeSlots.add(slot);
+          onTap:
+              isAvailable && !isPast
+                  ? () {
+                    setState(() {
+                      if (isSelected) {
+                        _selectedTimeSlots.removeWhere(
+                          (selectedSlot) =>
+                              selectedSlot['waktu'] == slot['waktu'],
+                        );
+                      } else {
+                        _selectedTimeSlots.add(slot);
+                      }
+                    });
                   }
-                });
-              }
-            : null,
+                  : null,
           child: Container(
             decoration: BoxDecoration(
-              color: isSelected 
-                ? Colors.blue.withOpacity(0.2)
-                : isAvailable && !isPast 
-                  ? Colors.white
-                  : Colors.grey.withOpacity(0.1),
+              color:
+                  isSelected
+                      ? Colors.blue.withOpacity(0.2)
+                      : isAvailable && !isPast
+                      ? Colors.white
+                      : Colors.grey.withOpacity(0.1),
               border: Border.all(
-                color: isSelected 
-                  ? Colors.blue 
-                  : Colors.grey.shade300,
+                color: isSelected ? Colors.blue : Colors.grey.shade300,
               ),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6), // Kecilkan radius
             ),
-            child: Center(
+            child: Padding(
+              padding: EdgeInsets.all(4), // Padding lebih kecil dan seragam
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     slot['waktu'],
                     style: TextStyle(
-                      color: !isAvailable 
-                        ? Colors.red
-                        : isPast 
-                          ? Colors.grey
-                          : isSelected
-                            ? Colors.blue
-                            : Colors.black,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color:
+                          !isAvailable
+                              ? Colors.red
+                              : isPast
+                              ? Colors.grey
+                              : isSelected
+                              ? Colors.blue
+                              : Colors.black,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 11, // Kecilkan font
                     ),
+                    maxLines: 1, // Batasi 1 baris
+                    overflow: TextOverflow.ellipsis,
                   ),
+                  SizedBox(height: 2), // Spacing minimal
                   Text(
-                    isAvailable 
-                      ? "Rp.${slot['harga']}"
-                      : "Booked",
+                    isAvailable ? "Rp.${slot['harga']}" : "Booked",
                     style: TextStyle(
-                      fontSize: 12,
-                      color: !isAvailable 
-                        ? Colors.red
-                        : isPast 
-                          ? Colors.grey
-                          : isSelected
-                            ? Colors.blue
-                            : Colors.black87,
+                      fontSize: 8, // Font sangat kecil untuk harga
+                      color:
+                          !isAvailable
+                              ? Colors.red
+                              : isPast
+                              ? Colors.grey
+                              : isSelected
+                              ? Colors.blue
+                              : Colors.black87,
                     ),
+                    maxLines: 1, // Batasi 1 baris
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -987,14 +1025,18 @@ Future<void> _createBooking() async {
         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
       );
     }
-    
+
     // Hitung total harga
     double totalPrice = 0;
     for (var slot in _selectedTimeSlots) {
       if (slot.containsKey('harga')) {
         var hargaValue = slot['harga'];
-        double harga = hargaValue is int ? hargaValue.toDouble() : 
-                       hargaValue is double ? hargaValue : 0.0;
+        double harga =
+            hargaValue is int
+                ? hargaValue.toDouble()
+                : hargaValue is double
+                ? hargaValue
+                : 0.0;
         totalPrice += harga;
       }
     }
@@ -1010,9 +1052,9 @@ Future<void> _createBooking() async {
         Text(
           "Total: Rp ${totalPrice.toStringAsFixed(0)}",
           style: TextStyle(
-            fontSize: 18, 
-            fontWeight: FontWeight.bold, 
-            color: Colors.green[700]
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.green[700],
           ),
         ),
       ],
@@ -1024,14 +1066,11 @@ Future<void> _createBooking() async {
     if (_isLoadingReviews && _reviews.isEmpty) {
       return Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
-    
+
     if (_reviews.isEmpty) {
-      return Text(
-        'Belum ada ulasan',
-        style: TextStyle(color: Colors.grey),
-      );
+      return Text('Belum ada ulasan', style: TextStyle(color: Colors.grey));
     }
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1044,17 +1083,18 @@ Future<void> _createBooking() async {
             review.formattedDate ?? '',
           );
         }),
-        
-        if (_hasMoreReviews) 
+
+        if (_hasMoreReviews)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12.0),
             child: Center(
-              child: _isLoadingMoreReviews 
-                ? CircularProgressIndicator(strokeWidth: 2)
-                : TextButton(
-                    onPressed: () => _fetchReviews(),
-                    child: Text('Muat Ulasan Lainnya'),
-                  ),
+              child:
+                  _isLoadingMoreReviews
+                      ? CircularProgressIndicator(strokeWidth: 2)
+                      : TextButton(
+                        onPressed: () => _fetchReviews(),
+                        child: Text('Muat Ulasan Lainnya'),
+                      ),
             ),
           ),
       ],
