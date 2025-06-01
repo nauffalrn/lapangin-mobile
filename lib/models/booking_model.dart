@@ -367,4 +367,30 @@ class Booking {
       jamSelesaiFormatted: jamSelesaiFormatted,
     );
   }
+
+  // Dalam class Booking, tambahkan method untuk mengambil koordinat dari lapanganData
+  double? get lapanganLatitude {
+    if (lapanganData != null) {
+      var lat = lapanganData!['latitude'];
+      if (lat is String) {
+        return double.tryParse(lat);
+      } else if (lat is num) {
+        return lat.toDouble();
+      }
+    }
+    return null;
+  }
+
+  // Method untuk mengambil longitude dari data lapangan
+  double? get lapanganLongitude {
+    if (lapanganData != null) {
+      var lng = lapanganData!['longitude'];
+      if (lng is String) {
+        return double.tryParse(lng);
+      } else if (lng is num) {
+        return lng.toDouble();
+      }
+    }
+    return null;
+  }
 }

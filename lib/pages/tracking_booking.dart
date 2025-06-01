@@ -7,6 +7,7 @@ import '../services/booking_services.dart';
 import '../config/api_config.dart';
 import 'detail.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/maps_service.dart';
 
 class TrackingBookingPage extends StatefulWidget {
   final int bookingId;
@@ -309,34 +310,14 @@ class _TrackingBookingPageState extends State<TrackingBookingPage> {
     );
   }
 
+  // Update method _openInGoogleMaps yang sudah ada
   Future<void> _openInGoogleMaps() async {
-    if (_booking?.lapanganData != null) {
-      final lapanganData = _booking!.lapanganData!;
-      final double? lat = lapanganData['latitude'] is String 
-          ? double.tryParse(lapanganData['latitude']) 
-          : lapanganData['latitude']?.toDouble();
-      final double? lng = lapanganData['longitude'] is String 
-          ? double.tryParse(lapanganData['longitude']) 
-          : lapanganData['longitude']?.toDouble();
-
-      if (lat != null && lng != null) {
-        final url = 'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng';
-        final uri = Uri.parse(url);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri);
-        } else {
-          throw 'Could not launch $url';
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Koordinat lokasi tidak tersedia'))
-        );
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Data lokasi tidak tersedia'))
-      );
-    }
+    await MapsService.openInGoogleMaps(
+      context: context,
+      latitude: _booking?.lapanganLatitude,
+      longitude: _booking?.lapanganLongitude,
+      placeName: _booking?.namaLapangan,
+    );
   }
 
   @override
@@ -346,14 +327,8 @@ class _TrackingBookingPageState extends State<TrackingBookingPage> {
         title: Text("Tracking Booking", style: TextStyle(color: Colors.white)),
         backgroundColor: Color(0xFF0A192F),
         iconTheme: IconThemeData(color: Colors.white),
-        // Override the back button behavior
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            // Navigate to active-bookings instead of going back
-            Navigator.pushReplacementNamed(context, '/active-bookings');
-          },
-        ),
+        // Remove the custom leading widget and let Flutter handle it automatically
+        automaticallyImplyLeading: true,
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
@@ -478,14 +453,19 @@ class _TrackingBookingPageState extends State<TrackingBookingPage> {
                   _buildDetailRow("Nama", _booking!.namaLapangan ?? "Tidak tersedia"),
                   _buildDetailRow("Alamat", _booking!.lokasi ?? "Tidak tersedia"),
                   SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _openInGoogleMaps,
-                    icon: Icon(Icons.directions),
-                    label: Text("Buka di Google Maps"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      minimumSize: Size(double.infinity, 44),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: (_booking?.lapanganLatitude != null && _booking?.lapanganLongitude != null) 
+                        ? _openInGoogleMaps 
+                        : null,
+                      icon: Icon(Icons.directions),
+                      label: Text("Buka di Google Maps"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey[300],
+                      ),
                     ),
                   ),
                 ],

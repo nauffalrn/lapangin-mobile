@@ -553,7 +553,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    'Rp ${lapangan.hargaSewa.toStringAsFixed(0)}/jam',
+                    'Rp ${lapangan.hargaSewa?.toStringAsFixed(0) ?? '0'}/jam',
                     style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.w500,
@@ -669,7 +669,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    'Rp ${lapangan.hargaSewa.toStringAsFixed(0)}/jam',
+                    'Rp ${lapangan.hargaSewa?.toStringAsFixed(0) ?? '0'}/jam',
                     style: const TextStyle(
                       color: Colors.green,
                       fontWeight: FontWeight.w600,

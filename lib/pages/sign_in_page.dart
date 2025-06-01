@@ -110,7 +110,7 @@ class __FormContentState extends State<_FormContent> {
               controller: _loginController,
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter your email or username';
+                  return 'Please enter your username';
                 }
 
                 // Cek apakah input berupa email atau username
@@ -121,14 +121,14 @@ class __FormContentState extends State<_FormContent> {
                 bool isUsername = RegExp(r"^[a-zA-Z0-9_]+$").hasMatch(value);
 
                 if (!isEmail && !isUsername) {
-                  return 'Please enter a valid email or username';
+                  return 'Please enter a valid username';
                 }
                 return null;
               },
               style: const TextStyle(color: Colors.white), // Warna teks input
               decoration: const InputDecoration(
-                labelText: 'Email or Username',
-                hintText: 'Enter your email or username',
+                labelText: 'Username',
+                hintText: 'Enter your username',
                 prefixIcon: Icon(Icons.person_outline, color: Colors.white),
                 border: OutlineInputBorder(),
                 labelStyle: TextStyle(color: Colors.white), // Warna label putih

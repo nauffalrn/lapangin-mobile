@@ -6,10 +6,11 @@ import '../models/lapangan_model.dart';
 import '../models/booking_model.dart';
 import '../services/booking_services.dart';
 import '../config/api_config.dart';
-import '../services/auth_service.dart'; // Tambahkan import yang diperlukan
+import '../services/auth_service.dart';
 import 'pembayaran.dart';
 import '../models/review_model.dart';
 import '../services/review_services.dart';
+import '../services/maps_service.dart';
 
 class DetailPage extends StatefulWidget {
   final Lapangan lapangan;
@@ -38,8 +39,9 @@ class _DetailPageState extends State<DetailPage> {
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation();
-    _fetchReviews(); // Tambahkan ini
+    // Hapus _getCurrentLocation() karena tidak diperlukan lagi
+    // _getCurrentLocation();
+    _fetchReviews();
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -319,11 +321,11 @@ Future<void> _createBooking() async {
       // Extract hour from time string
       int jamBooking = int.parse(slot['waktu'].split(':')[0]);
       
-      // Get price from slot
+      // Get price from slot - PERBAIKAN DISINI
       var hargaValue = slot['harga'];
       double harga = hargaValue is int ? hargaValue.toDouble() : 
                      hargaValue is double ? hargaValue : 
-                     widget.lapangan.hargaSewa;
+                     (widget.lapangan.hargaSewa ?? 0.0); // Tambahkan null check
                      
       jadwalItems.add(JadwalItem(jam: jamBooking, harga: harga));
     }
@@ -403,67 +405,65 @@ Future<void> _createBooking() async {
   }
 }
 
-  Future<void> _getCurrentLocation() async {
-    setState(() {
-      _isLoadingLocation = true;
-    });
-
-    try {
-      // Check and request location permissions
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          throw Exception('Location permissions denied');
-        }
-      }
-
-      // Get current position
-      Position position = await Geolocator.getCurrentPosition();
-
-      // Get venue coordinates from the widget data
-      double? venueLat = widget.lapangan.latitude;
-      double? venueLng = widget.lapangan.longitude;
-
-      if (venueLat != null && venueLng != null) {
-        // Calculate distance in meters
-        double distanceInMeters = Geolocator.distanceBetween(
-          position.latitude,
-          position.longitude,
-          venueLat,
-          venueLng,
-        );
-
-        setState(() {
-          _distance = distanceInMeters;
-          _isLoadingLocation = false;
-        });
-      } else {
-        setState(() {
-          _isLoadingLocation = false;
-        });
-      }
-    } catch (e) {
-      print('Error getting location: $e');
-      setState(() {
-        _isLoadingLocation = false;
-      });
-    }
-  }
-
+  // Update method _openInGoogleMaps yang sudah ada
   Future<void> _openInGoogleMaps() async {
-    if (widget.lapangan.latitude != null && widget.lapangan.longitude != null) {
-      final url =
-          'https://www.google.com/maps/dir/?api=1&destination=${widget.lapangan.latitude},${widget.lapangan.longitude}';
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      } else {
-        throw 'Could not launch $url';
-      }
+    // Cek apakah koordinat tersedia
+    if (widget.lapangan.latitude == null || widget.lapangan.longitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Koordinat lokasi tidak tersedia'))
+      );
+      return;
     }
+
+    await MapsService.openInGoogleMaps(
+      context: context,
+      latitude: widget.lapangan.latitude,
+      longitude: widget.lapangan.longitude,
+      placeName: widget.lapangan.nama,
+    );
   }
 
+  // Update UI untuk tombol Google Maps
+  Widget _buildLocationSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Lokasi:",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 4),
+          Text(
+            widget.lapangan.alamat ?? 'Alamat tidak tersedia',
+            style: TextStyle(fontSize: 16, color: Colors.black87),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: ElevatedButton.icon(
+              onPressed: widget.lapangan.latitude != null && widget.lapangan.longitude != null
+                  ? _openInGoogleMaps
+                  : () {
+                      // Fallback: buka Google Maps dengan nama lapangan
+                      MapsService.openInGoogleMapsWithQuery(
+                        context: context,
+                        query: "${widget.lapangan.nama} ${widget.lapangan.alamat ?? ''}",
+                      );
+                    },
+              icon: Icon(Icons.directions),
+              label: Text("Buka di Google Maps"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
   Future<void> _fetchReviews({bool refresh = false}) async {
   if (refresh) {
     setState(() {
@@ -537,57 +537,48 @@ Future<void> _createBooking() async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Detail Lapangan')),
+      appBar: AppBar(
+        title: Text('Detail Lapangan', style: TextStyle(color: Colors.white)),
+        backgroundColor: Color(0xFF0A192F),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            widget.lapangan.gambar != null && widget.lapangan.gambar!.isNotEmpty
-                ? FutureBuilder<Map<String, String>>(
-                  future: ApiConfig.getAuthHeaders(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Container(
-                        width: double.infinity,
-                        height: 250,
-                        color: Colors.grey.shade200,
-                        child: Center(child: CircularProgressIndicator()),
-                      );
-                    }
-
-                    return Image.network(
-                      ApiConfig.getImageUrl(widget.lapangan.gambar),
-                      width: double.infinity,
-                      height: 250,
-                      fit: BoxFit.cover,
-                      headers: snapshot.data,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Image.asset(
-                          'assets/logo.png',
-                          width: double.infinity,
-                          height: 250,
-                          fit: BoxFit.cover,
-                        );
-                      },
-                    );
-                  },
-                )
-                : Image.asset(
-                  'assets/logo.png',
-                  width: double.infinity,
-                  height: 250,
+            // Image
+            Container(
+              height: 250,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: widget.lapangan.image != null && widget.lapangan.image!.isNotEmpty
+                      ? NetworkImage(ApiConfig.getImageUrl(widget.lapangan.image))
+                      : AssetImage('assets/logo.png') as ImageProvider,
                   fit: BoxFit.cover,
                 ),
+              ),
+            ),
+            
+            // Content
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Nama Lapangan
                   Text(
                     widget.lapangan.nama,
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   SizedBox(height: 8),
+                  
+                  // Rating dan Reviews
                   Row(
                     children: [
                       Icon(Icons.star, color: Colors.orange, size: 20),
@@ -612,8 +603,10 @@ Future<void> _createBooking() async {
                     ],
                   ),
                   SizedBox(height: 8),
+                  
+                  // Harga
                   Text(
-                    'Rp ${widget.lapangan.hargaSewa.toStringAsFixed(0)}/jam',
+                    'Rp ${widget.lapangan.hargaSewa?.toStringAsFixed(0) ?? '0'}/jam', // PERBAIKAN DISINI
                     style: TextStyle(
                       color: Colors.green,
                       fontSize: 18,
@@ -621,35 +614,29 @@ Future<void> _createBooking() async {
                     ),
                   ),
                   SizedBox(height: 16),
+                  
+                  // Lokasi
                   Text(
                     "Lokasi:",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),
                   Text(
-                    widget.lapangan.alamat,
+                    widget.lapangan.alamat ?? 'Alamat tidak tersedia',
                     style: TextStyle(fontSize: 16, color: Colors.black87),
                   ),
-                  if (_isLoadingLocation)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else if (_distance != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        "Jarak: ${_distance! < 1000 ? '${_distance!.toStringAsFixed(0)} meter' : '${(_distance! / 1000).toStringAsFixed(2)} km'}",
-                        style: TextStyle(fontSize: 14, color: Colors.blue),
-                      ),
-                    ),
                   Padding(
                     padding: const EdgeInsets.only(top: 8.0),
                     child: ElevatedButton.icon(
-                      onPressed:
-                          widget.lapangan.latitude != null
-                              ? _openInGoogleMaps
-                              : null,
+                      onPressed: widget.lapangan.latitude != null && widget.lapangan.longitude != null
+                          ? _openInGoogleMaps
+                          : () {
+                              // Fallback: buka Google Maps dengan nama lapangan
+                              MapsService.openInGoogleMapsWithQuery(
+                                context: context,
+                                query: "${widget.lapangan.nama} ${widget.lapangan.alamat ?? ''}",
+                              );
+                            },
                       icon: Icon(Icons.directions),
                       label: Text("Buka di Google Maps"),
                       style: ElevatedButton.styleFrom(
@@ -661,45 +648,87 @@ Future<void> _createBooking() async {
                   
                   SizedBox(height: 16),
                   
-                  // BAGIAN BOOKING BARU - menggantikan bagian "Tanggal dan Jam" lama
-                  _buildBookingSection(),
-                  
-                  SizedBox(height: 16),
-                  Text(
-                    "Deskripsi:",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    widget.lapangan.deskripsi,
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  
-                  // Single Reviews Section - formatted like in the image
-                  SizedBox(height: 24),
-                  Text(
-                    'Reviews',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 10),
-                  
-                  // Replace the reviews display code with this:
-                  RefreshIndicator(
-                    onRefresh: () async => await _fetchReviews(refresh: true),
-                    child: SingleChildScrollView(
-                      physics: AlwaysScrollableScrollPhysics(),
-                      child: _buildReviewsSection(),
+                  // Cabang Olahraga
+                  if (widget.lapangan.cabangOlahraga != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Cabang Olahraga:",
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          widget.lapangan.cabangOlahraga!,
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        SizedBox(height: 16),
+                      ],
                     ),
+                
+                  // Fasilitas
+                  if (widget.lapangan.facilities != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Fasilitas:",
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          widget.lapangan.facilities!,
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        SizedBox(height: 16),
+                      ],
+                    ),
+                
+                  // Jam Operasional
+                  if (widget.lapangan.jamBuka != null && widget.lapangan.jamTutup != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Jam Operasional:",
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          "${widget.lapangan.jamBuka} - ${widget.lapangan.jamTutup}",
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        SizedBox(height: 16),
+                      ],
+                    ),
+                
+                // BAGIAN BOOKING
+                _buildBookingSection(),
+                
+                SizedBox(height: 16),
+                
+                // Reviews Section
+                Text(
+                  'Reviews',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 10),
+                
+                RefreshIndicator(
+                  onRefresh: () async => await _fetchReviews(refresh: true),
+                  child: SingleChildScrollView(
+                    physics: AlwaysScrollableScrollPhysics(),
+                    child: _buildReviewsSection(),
                   ),
-                      
-                  // Tombol booking lama dihapus
-                  SizedBox(height: 20),
-                ],
-              ),
+                ),
+                
+                SizedBox(height: 20),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+    ),
     );
   }
 

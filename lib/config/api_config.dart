@@ -4,7 +4,7 @@ import 'dart:math';
 
 class ApiConfig {
   // Jika dijalankan di perangkat fisik
-  static const baseUrl = "http://192.168.165.186:8181/api";
+  static const baseUrl = "http://192.168.192.186:8181/api";
 
   // Perbaikan URL gambar - mencoba URL alternatif
   static String getImageUrl(String? imagePath) {

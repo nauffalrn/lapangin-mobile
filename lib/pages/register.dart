@@ -99,14 +99,13 @@ class __RegisterFormState extends State<_RegisterForm> {
       builder: (context) {
         return AlertDialog(
           title: const Text("Registration Successful"),
-          content: const Text("You have successfully registered."),
+          content: const Text(
+            "Your account has been created successfully. Please login to continue.",
+          ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => HomePage()),
-                );
+                Navigator.pushReplacementNamed(context, '/login');
               },
               child: const Text("OK"),
             ),

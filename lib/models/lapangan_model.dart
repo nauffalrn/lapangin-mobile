@@ -1,62 +1,94 @@
 class Lapangan {
   final int id;
   final String nama;
-  final String jenis;
-  final String alamat;
-  final String deskripsi;
-  final double hargaSewa;
-  final String? gambar;
+  final String? city;
+  final String? image;
+  final double? price;
   final double? rating;
-  final int? reviews; // Tambahkan field reviews
+  final int? reviews;
+  final String? cabangOlahraga;
+  final String? alamat;
+  final String? facilities;
+  final String? jamBuka;
+  final String? jamTutup;
   final double? latitude;
   final double? longitude;
 
   Lapangan({
     required this.id,
     required this.nama,
-    required this.jenis,
-    required this.alamat,
-    required this.deskripsi,
-    required this.hargaSewa,
-    this.gambar,
+    this.city,
+    this.image,
+    this.price,
     this.rating,
     this.reviews,
+    this.cabangOlahraga,
+    this.alamat,
+    this.facilities,
+    this.jamBuka,
+    this.jamTutup,
     this.latitude,
     this.longitude,
   });
 
+  // Tambahkan getter untuk kompatibilitas dengan kode yang ada
+  String? get gambar => image;
+  double? get hargaSewa => price;
+
   factory Lapangan.fromJson(Map<String, dynamic> json) {
     return Lapangan(
-      id: json['id'] is String ? int.parse(json['id']) : (json['id'] ?? 0),
-      nama: json['namaLapangan'] ?? '',
-      jenis: json['cabangOlahraga'] ?? '',
-      alamat: json['alamatLapangan'] ?? json['city'] ?? '',
-      deskripsi: json['facilities'] ?? '',
-      hargaSewa:
-          json['price'] != null
-              ? (json['price'] is int
-                  ? json['price'].toDouble()
-                  : double.tryParse(json['price'].toString()) ?? 0.0)
-              : 0.0,
-      gambar: json['image'],
-      rating:
-          json['rating'] != null
-              ? double.tryParse(json['rating'].toString())
-              : 0.0,
-      reviews:
-          json['reviews'] is int
-              ? json['reviews']
-              : (json['reviews'] != null
-                  ? int.tryParse(json['reviews'].toString())
-                  : 0),
-      latitude:
-          json['latitude'] != null
-              ? double.tryParse(json['latitude'].toString())
-              : null,
-      longitude:
-          json['longitude'] != null
-              ? double.tryParse(json['longitude'].toString())
-              : null,
+      id: json['id'] ?? 0,
+      nama: json['nama_lapangan'] ?? json['namaLapangan'] ?? '',
+      city: json['city'],
+      image: json['image'] ?? json['gambar'],
+      price: json['price']?.toDouble() ?? json['hargaSewa']?.toDouble(),
+      rating: json['rating']?.toDouble(),
+      reviews: json['reviews'],
+      cabangOlahraga: json['cabang_olahraga'] ?? json['cabangOlahraga'],
+      alamat: json['alamat_lapangan'] ?? json['alamatLapangan'],
+      facilities: json['facilities'],
+      jamBuka: json['jam_buka'] ?? json['jamBuka'],
+      jamTutup: json['jam_tutup'] ?? json['jamTutup'],
+      // Perbaikan parsing koordinat
+      latitude: _parseCoordinate(json['latitude']),
+      longitude: _parseCoordinate(json['longitude']),
     );
+  }
+
+  // Helper method untuk parsing koordinat
+  static double? _parseCoordinate(dynamic value) {
+    if (value == null) return null;
+
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      try {
+        return double.parse(value);
+      } catch (e) {
+        print("Error parsing coordinate: $value - $e");
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'nama_lapangan': nama,
+      'city': city,
+      'image': image,
+      'price': price,
+      'rating': rating,
+      'reviews': reviews,
+      'cabang_olahraga': cabangOlahraga,
+      'alamat_lapangan': alamat,
+      'facilities': facilities,
+      'jam_buka': jamBuka,
+      'jam_tutup': jamTutup,
+      'latitude': latitude,
+      'longitude': longitude,
+    };
   }
 }

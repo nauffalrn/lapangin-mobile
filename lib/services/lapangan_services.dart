@@ -27,11 +27,12 @@ class LapanganService {
           var responseData = jsonDecode(response.body);
           List<Lapangan> result = [];
 
-          // Handle berbagai kemungkinan format response
+          print("Response type: ${responseData.runtimeType}");
+          print("Response data: $responseData");
+
+          // Handle berbagai format response
           if (responseData is List) {
-            // Backend mengembalikan array langsung
-            result =
-                responseData.map((json) => Lapangan.fromJson(json)).toList();
+            result = responseData.map((json) => Lapangan.fromJson(json)).toList();
           }
           // Response dalam bentuk objek dengan property data
           else if (responseData is Map && responseData.containsKey('data')) {
