@@ -608,94 +608,45 @@ class BookingService {
   // Update the getBookingDetails method to fill in jamMulai and jamSelesai
   static Future<Booking> getBookingDetails(int bookingId) async {
     try {
-      final token = await AuthService.ensureFreshToken();
+      print("Fetching booking details for ID: $bookingId");
 
-      if (token == null || token.isEmpty) {
-        throw Exception('Authentication token not found. Please login again.');
-      }
-
-      // Use the correct endpoint path to match your backend
-      final String url = '${ApiConfig.baseUrl}/booking/${bookingId}';
-
-      print("Fetching booking details: $url");
-
-      final response = await http
-          .get(
-            Uri.parse(url),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-              'Accept': 'application/json',
-            },
-          )
-          .timeout(
-            const Duration(seconds: 20),
-            onTimeout:
-                () =>
-                    throw TimeoutException(
-                      'Connection timed out. Please try again.',
-                    ),
-          );
+      final headers = await ApiConfig.getAuthHeaders();
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/booking/$bookingId'),
+        headers: headers,
+      );
 
       print("Booking details response status: ${response.statusCode}");
       print("Booking details response body: ${response.body}");
 
       if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
+        final data = jsonDecode(response.body);
 
-        // Validate the data structure and format
-        if (responseData is Map && responseData.containsKey('success')) {
-          if (responseData['success'] == true && responseData['data'] != null) {
-            final bookingData = responseData['data'];
-            print("Got valid booking data: $bookingData");
+        if (data['success'] == true && data['data'] != null) {
+          var bookingData = data['data'];
 
-            // Ensure we convert the data properly
-            Booking booking = Booking.fromJson(bookingData);
-
-            // Fill in any missing data
-            if (booking.waktu == null &&
-                booking.jamMulai != null &&
-                booking.jamSelesai != null) {
-              String startTime =
-                  "${booking.jamMulai.toString().padLeft(2, '0')}:00";
-              String endTime =
-                  "${booking.jamSelesai.toString().padLeft(2, '0')}:00";
-              booking.waktu = "$startTime-$endTime";
-            }
-
-            // Save the booking for future use
-            await saveBookingLocally(booking);
-            return booking;
-          } else {
-            throw Exception(
-              responseData['message'] ?? 'Failed to load booking details',
-            );
+          // Pastikan data lapangan termasuk koordinat
+          if (bookingData['lapangan'] != null) {
+            print("Lapangan data in booking: ${bookingData['lapangan']}");
           }
+
+          final booking = Booking.fromJson(bookingData);
+
+          // Debug koordinat
+          print(
+            "Booking parsed - Lat: ${booking.lapanganLatitude}, Lng: ${booking.lapanganLongitude}",
+          );
+
+          return booking;
         } else {
-          // Direct response format
-          return Booking.fromJson(responseData);
+          throw Exception(data['message'] ?? 'Failed to get booking details');
         }
       } else {
-        // Try to fetch from history instead
-        final allBookings = await getBookingHistory();
-        final booking = allBookings.firstWhere(
-          (b) => b.id == bookingId,
-          orElse: () => throw Exception('Booking not found in history'),
-        );
-
-        // Save for future reference
-        await saveBookingLocally(booking);
-        return booking;
+        throw Exception('Failed to fetch booking: ${response.statusCode}');
       }
     } catch (e) {
       print("Error fetching booking details: $e");
-
-      // Try to get from local storage as fallback
-      try {
-        return await getSavedBooking(bookingId);
-      } catch (localError) {
-        throw Exception('Booking not found: $e');
-      }
+      throw e;
     }
   }
 

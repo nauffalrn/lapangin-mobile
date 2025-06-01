@@ -3,12 +3,110 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 class MapsService {
+  // Method untuk membuka lokasi di Google Maps (menampilkan rute tanpa navigasi otomatis)
+  static Future<void> openInGoogleMapsWithLocation({
+    required BuildContext context,
+    required double? latitude,
+    required double? longitude,
+    String? placeName,
+  }) async {
+    if (latitude == null || longitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Koordinat lokasi tidak tersedia')),
+      );
+      return;
+    }
+
+    try {
+      print(
+        "Attempting to open Google Maps location view: $latitude, $longitude",
+      );
+      print("Place name: $placeName");
+
+      // List of URLs untuk menampilkan lokasi dengan nama tempat (bukan koordinat)
+      List<String> urlsToTry = [];
+
+      // Jika ada nama tempat, prioritaskan pencarian berdasarkan nama dengan koordinat sebagai referensi
+      if (placeName != null && placeName.isNotEmpty) {
+        String encodedPlaceName = Uri.encodeComponent(placeName);
+
+        urlsToTry.addAll([
+          // URL yang menampilkan rute ke nama tempat (seperti di gambar contoh)
+          'https://www.google.com/maps/dir/?api=1&destination=$encodedPlaceName&travelmode=driving',
+          // URL pencarian dengan nama tempat
+          'https://www.google.com/maps/search/?api=1&query=$encodedPlaceName',
+          // URL dengan nama tempat dan koordinat untuk akurasi
+          'https://www.google.com/maps/search/?api=1&query=$encodedPlaceName+$latitude,$longitude',
+          // URL sederhana dengan nama tempat
+          'https://maps.google.com/?q=$encodedPlaceName',
+        ]);
+      }
+
+      // URL fallback dengan koordinat jika nama tempat tidak ada atau gagal
+      urlsToTry.addAll([
+        'https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude&travelmode=driving',
+        'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude',
+        'https://www.google.com/maps/@$latitude,$longitude,15z',
+        'https://maps.google.com/?q=$latitude,$longitude',
+        'geo:$latitude,$longitude?z=15',
+      ]);
+
+      bool success = false;
+      String lastError = '';
+
+      for (String url in urlsToTry) {
+        try {
+          print("Trying URL: $url");
+          final uri = Uri.parse(url);
+
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+            success = true;
+            print("Successfully opened: $url");
+            break;
+          } else {
+            print("Cannot launch URL: $url");
+          }
+        } catch (e) {
+          lastError = e.toString();
+          print("Error with URL $url: $e");
+          continue;
+        }
+      }
+
+      if (!success) {
+        throw Exception(
+          'Tidak dapat membuka Google Maps. Error terakhir: $lastError',
+        );
+      }
+    } catch (e) {
+      print("Error opening Google Maps: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal membuka Google Maps: $e'),
+          action: SnackBarAction(
+            label: 'Salin Nama',
+            onPressed: () {
+              // Copy place name to clipboard as fallback
+              final placeToCopy = placeName ?? '$latitude, $longitude';
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Nama tempat disalin: $placeToCopy')),
+              );
+            },
+          ),
+        ),
+      );
+    }
+  }
+
+  // Method yang sudah ada untuk navigasi (digunakan di detail page)
   static Future<void> openInGoogleMaps({
     required BuildContext context,
     required double? latitude,
     required double? longitude,
     String? placeName,
   }) async {
+    // Method ini tetap ada untuk navigasi langsung jika diperlukan
     if (latitude == null || longitude == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Koordinat lokasi tidak tersedia')),
@@ -135,71 +233,47 @@ class MapsService {
     try {
       print("Opening Google Maps with query: $query");
 
-      // Dapatkan lokasi pengguna untuk navigasi yang lebih akurat
-      Position? currentPosition;
-      try {
-        LocationPermission permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-        }
+      // Encode query untuk URL
+      String encodedQuery = Uri.encodeComponent(query);
 
-        if (permission == LocationPermission.whileInUse ||
-            permission == LocationPermission.always) {
-          currentPosition = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 10),
-          );
-        }
-      } catch (e) {
-        print("Could not get current location for query: $e");
-      }
-
-      List<String> urlsToTry = [];
-
-      final encodedQuery = Uri.encodeComponent(query);
-
-      // Jika ada lokasi saat ini, buat URL navigasi
-      if (currentPosition != null) {
-        urlsToTry.addAll([
-          'https://www.google.com/maps/dir/${currentPosition.latitude},${currentPosition.longitude}/$encodedQuery',
-          'geo:${currentPosition.latitude},${currentPosition.longitude}?q=$encodedQuery',
-        ]);
-      }
-
-      // URL fallback
-      urlsToTry.addAll([
+      // Daftar URL yang akan dicoba (prioritaskan nama tempat)
+      List<String> urls = [
+        // URL untuk menampilkan rute ke nama tempat
+        'https://www.google.com/maps/dir/?api=1&destination=$encodedQuery&travelmode=driving',
+        // URL pencarian dengan nama tempat
         'https://www.google.com/maps/search/?api=1&query=$encodedQuery',
+        // URL sederhana
         'https://maps.google.com/?q=$encodedQuery',
+        // Geo scheme (fallback)
         'geo:0,0?q=$encodedQuery',
-      ]);
+      ];
 
-      bool success = false;
+      bool opened = false;
+      for (String url in urls) {
+        print("Trying to open: $url");
 
-      for (String url in urlsToTry) {
-        try {
-          print("Trying query URL: $url");
-          final uri = Uri.parse(url);
-
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-            success = true;
-            print("Successfully opened query: $url");
-            break;
-          }
-        } catch (e) {
-          print("Error with query URL $url: $e");
-          continue;
+        if (await canLaunchUrl(Uri.parse(url))) {
+          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+          opened = true;
+          print("Successfully opened: $url");
+          break;
         }
       }
 
-      if (!success) {
-        throw Exception('Tidak dapat membuka Google Maps dengan pencarian');
+      if (!opened) {
+        // Fallback ke browser
+        String browserUrl =
+            'https://www.google.com/maps/search/?api=1&query=$encodedQuery';
+        await launchUrl(
+          Uri.parse(browserUrl),
+          mode: LaunchMode.externalApplication,
+        );
       }
     } catch (e) {
-      print("Error opening Google Maps with query: $e");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal membuka Google Maps: $e')));
+      print("Error opening Google Maps: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membuka Google Maps: ${e.toString()}')),
+      );
     }
   }
 }

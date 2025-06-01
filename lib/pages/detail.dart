@@ -417,7 +417,7 @@ class _DetailPageState extends State<DetailPage> {
     }
   }
 
-  // Update method _openInGoogleMaps yang sudah ada
+  // Update method _openInGoogleMaps di detail page
   Future<void> _openInGoogleMaps() async {
     // Cek apakah koordinat tersedia
     if (widget.lapangan.latitude == null || widget.lapangan.longitude == null) {
@@ -427,7 +427,9 @@ class _DetailPageState extends State<DetailPage> {
       return;
     }
 
-    await MapsService.openInGoogleMaps(
+    // PERBAIKAN: Gunakan method yang menampilkan lokasi dengan rute,
+    // bukan yang langsung memulai navigasi
+    await MapsService.openInGoogleMapsWithLocation(
       context: context,
       latitude: widget.lapangan.latitude,
       longitude: widget.lapangan.longitude,

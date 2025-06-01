@@ -371,7 +371,12 @@ class Booking {
   // Dalam class Booking, tambahkan method untuk mengambil koordinat dari lapanganData
   double? get lapanganLatitude {
     if (lapanganData != null) {
-      var lat = lapanganData!['latitude'];
+      // Coba berbagai kemungkinan nama field
+      var lat =
+          lapanganData!['latitude'] ??
+          lapanganData!['lat'] ??
+          lapanganData!['lapanganLatitude'];
+
       if (lat is String) {
         return double.tryParse(lat);
       } else if (lat is num) {
@@ -384,7 +389,13 @@ class Booking {
   // Method untuk mengambil longitude dari data lapangan
   double? get lapanganLongitude {
     if (lapanganData != null) {
-      var lng = lapanganData!['longitude'];
+      // Coba berbagai kemungkinan nama field
+      var lng =
+          lapanganData!['longitude'] ??
+          lapanganData!['lng'] ??
+          lapanganData!['lon'] ??
+          lapanganData!['lapanganLongitude'];
+
       if (lng is String) {
         return double.tryParse(lng);
       } else if (lng is num) {
