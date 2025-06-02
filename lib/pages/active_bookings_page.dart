@@ -42,151 +42,127 @@ class _ActiveBookingsPageState extends State<ActiveBookingsPage> {
   }
 
   Future<void> _fetchActiveBookings() async {
+  if (!mounted) return;
+  
+  List<Booking> activeList = [];
+  List<Booking> upcomingList = [];
+  
+  try {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final isLoggedIn = await AuthService.isLoggedIn();
+    if (!isLoggedIn) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = "Silakan login untuk melihat booking Anda";
+      });
+      return;
+    }
+
+    final allBookings = await BookingService.getBookingHistory();
     if (!mounted) return;
     
-    // Define lists outside the try/catch blocks so they're accessible in both
-    List<Booking> activeList = [];
-    List<Booking> upcomingList = [];
-    
-    try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-
-      // Check login status first
-      final isLoggedIn = await AuthService.isLoggedIn();
-      if (!isLoggedIn) {
-        if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-          _errorMessage = "Silakan login untuk melihat booking Anda";
-        });
-        return;
-      }
-
-      // Fetch all bookings
-      final allBookings = await BookingService.getBookingHistory();
-      if (!mounted) return;
-      
-      // Add this after the getBookingHistory call
-      print("RAW BOOKING DATA FROM SERVER:");
-      for (final booking in allBookings) {
-        print("===== BOOKING ${booking.id} =====");
-        print("Tanggal: ${booking.tanggal}");
-        print("Waktu: ${booking.waktu}");
-        print("JamMulai: ${booking.jamMulai}");
-        print("JamSelesai: ${booking.jamSelesai}");
-        print("Data type checks: ");
-        print("- tanggal is ${booking.tanggal?.runtimeType}");
-        print("- waktu is ${booking.waktu?.runtimeType}");
-        print("- jamMulai is ${booking.jamMulai?.runtimeType}");
-        print("- jamSelesai is ${booking.jamSelesai?.runtimeType}");
-      }
-      
-      // Current time for comparisons
-      final now = DateTime.now();
-      
-      print("Found ${allBookings.length} bookings in history");
-      
-      // Process bookings - reuse the lists defined outside
-      for (final booking in allBookings) {
-        // Save booking locally to improve tracking performance
-        await BookingService.saveBookingLocally(booking);
-        
-        // Skip invalid bookings
-        if (!isBookingValid(booking)) {
-          print("Skipping invalid booking ${booking.id}");
-          continue;
-        }
-        
-        // Parse the booking date and time
-        final bookingInfo = getBookingDateTimes(booking);
-        if (bookingInfo == null) {
-          print("Could not parse date/time for booking ${booking.id}, skipping");
-          continue;
-        }
-        
-        final startTime = bookingInfo['start'] as DateTime;
-        final endTime = bookingInfo['end'] as DateTime;
-        
-        // Get current time in local timezone
-        final now = DateTime.now();
-        
-        print("COMPARING TIME: Booking ${booking.id}, Start: ${startTime}, End: ${endTime}, Now: ${now}");
-        print("Local date check - Booking day: ${startTime.day}/${startTime.month}, Today: ${now.day}/${now.month}");
-        
-        // Enhanced comparison that's more tolerant of slight time differences
-        // A booking is considered active if current time is within start and end times
-        if (now.isAfter(startTime) && now.isBefore(endTime)) {
-          // Currently active booking
-          print("Booking ${booking.id} is ACTIVE");
-          activeList.add(booking);
-        } 
-        // A booking is upcoming if it's in the future (start time is after now)
-        else if (now.isBefore(startTime)) {
-          // Future booking - will happen later
-          print("Booking ${booking.id} is UPCOMING");
-          upcomingList.add(booking);
-        } 
-        // Otherwise, it's a past booking (end time is before now)
-        else {
-          print("Booking ${booking.id} is PAST");
-        }
-      }
-      
-      // Sort by date (closest first)
-      activeList.sort((a, b) {
-        final aInfo = getBookingDateTimes(a);
-        final bInfo = getBookingDateTimes(b);
-        if (aInfo == null || bInfo == null) return 0;
-        return (aInfo['start'] as DateTime).compareTo(bInfo['start'] as DateTime);
-      });
-      
-      upcomingList.sort((a, b) {
-        final aInfo = getBookingDateTimes(a);
-        final bInfo = getBookingDateTimes(b);
-        if (aInfo == null || bInfo == null) return 0;
-        return (aInfo['start'] as DateTime).compareTo(bInfo['start'] as DateTime);
-      });
-      
-      if (!mounted) return;
-      
-      setState(() {
-        _activeBookings = activeList;
-        _upcomingBookings = upcomingList;
-        _isLoading = false;
-      });
-      
-      print("Active bookings: ${activeList.length}, Upcoming: ${upcomingList.length}");
-      
-      // Add this to debug each upcoming booking
-      if (upcomingList.isNotEmpty) {
-        print("UPCOMING BOOKINGS DETAILS:");
-        for (var booking in upcomingList) {
-          print("- ID: ${booking.id}, Lapangan: ${booking.namaLapangan}");
-          print("  Tanggal: ${booking.tanggal}, Waktu: ${booking.waktu}");
-        }
-      }
-    } catch (e) {
-      if (!mounted) return;
-      
-      // ADDED: Print the total upcoming and active bookings for debugging
-      // Now the lists are accessible here
-      print("\n===== ACTIVE BOOKINGS DEBUGGING =====");
-      print("ACTIVE COUNT: ${activeList.length}");
-      activeList.forEach((booking) => print(" - ID ${booking.id}: ${booking.namaLapangan}, ${booking.tanggal}, ${booking.waktu}"));
-      
-      print("\nUPCOMING COUNT: ${upcomingList.length}");
-      upcomingList.forEach((booking) => print(" - ID ${booking.id}: ${booking.namaLapangan}, ${booking.tanggal}, ${booking.waktu}"));
-      print("=====================================\n");
-      
-      setState(() {
-        _errorMessage = 'Gagal memuat booking aktif: $e';
-        _isLoading = false;
-      });
+    print("RAW BOOKING DATA FROM SERVER:");
+    for (final booking in allBookings) {
+      print("===== BOOKING ${booking.id} =====");
+      print("Tanggal: ${booking.tanggal}");
+      print("Waktu: ${booking.waktu}");
+      print("JamMulai: ${booking.jamMulai}");
+      print("JamSelesai: ${booking.jamSelesai}");
     }
+    
+    final now = DateTime.now();
+    print("Current time: $now");
+    print("Found ${allBookings.length} bookings in history");
+    
+    for (final booking in allBookings) {
+      await BookingService.saveBookingLocally(booking);
+      
+      if (!isBookingValid(booking)) {
+        print("Skipping invalid booking ${booking.id}");
+        continue;
+      }
+
+      final bookingInfo = getBookingDateTimes(booking);
+      if (bookingInfo == null) {
+        print("Could not parse date/time for booking ${booking.id}, skipping");
+        continue;
+      }
+      
+      final startTime = bookingInfo['start'] as DateTime;
+      final endTime = bookingInfo['end'] as DateTime;
+      
+      print("COMPARING TIME: Booking ${booking.id}");
+      print("  Start: ${startTime}");
+      print("  End: ${endTime}");
+      print("  Now: ${now}");
+      
+      // Toleransi 1 menit untuk menghindari masalah precision
+      final tolerance = Duration(minutes: 1);
+      
+      // LOGIKA BARU: Lebih ketat dalam kategorisasi
+      if (now.isAfter(startTime.subtract(tolerance)) && now.isBefore(endTime.add(tolerance))) {
+        // Currently active booking - sedang berlangsung
+        print("Booking ${booking.id} is ACTIVE (ongoing)");
+        activeList.add(booking);
+      } 
+      else if (now.isBefore(startTime.subtract(tolerance))) {
+        // Future booking - belum dimulai
+        print("Booking ${booking.id} is UPCOMING (future)");
+        upcomingList.add(booking);
+      } 
+      else {
+        // Past booking - sudah selesai
+        print("Booking ${booking.id} is PAST (completed)");
+      }
+    }
+    
+    // Sort by date (closest first)
+    activeList.sort((a, b) {
+      final aInfo = getBookingDateTimes(a);
+      final bInfo = getBookingDateTimes(b);
+      if (aInfo == null || bInfo == null) return 0;
+      return (aInfo['start'] as DateTime).compareTo(bInfo['start'] as DateTime);
+    });
+    
+    upcomingList.sort((a, b) {
+      final aInfo = getBookingDateTimes(a);
+      final bInfo = getBookingDateTimes(b);
+      if (aInfo == null || bInfo == null) return 0;
+      return (aInfo['start'] as DateTime).compareTo(bInfo['start'] as DateTime);
+    });
+    
+    if (!mounted) return;
+    
+    setState(() {
+      _activeBookings = activeList;
+      _upcomingBookings = upcomingList;
+      _isLoading = false;
+    });
+    
+    print("FINAL RESULT:");
+    print("Active bookings: ${activeList.length}");
+    activeList.forEach((booking) => print(" - ID ${booking.id}: ${booking.namaLapangan}, ${booking.tanggal}, ${booking.waktu}"));
+    
+    print("Upcoming bookings: ${upcomingList.length}");
+    upcomingList.forEach((booking) => print(" - ID ${booking.id}: ${booking.namaLapangan}, ${booking.tanggal}, ${booking.waktu}"));
+    
+  } catch (e) {
+    if (!mounted) return;
+    
+    print("ERROR in _fetchActiveBookings: $e");
+    print("FINAL COUNTS - Active: ${activeList.length}, Upcoming: ${upcomingList.length}");
+    
+    setState(() {
+      _errorMessage = 'Gagal memuat booking aktif: $e';
+      _isLoading = false;
+    });
   }
+}
 
   // Helper to check if booking is ended
   bool isBookingEnded(Booking booking) {
@@ -199,130 +175,71 @@ class _ActiveBookingsPageState extends State<ActiveBookingsPage> {
 
   // Update the getBookingDateTimes method for better timezone handling
   Map<String, DateTime>? getBookingDateTimes(Booking booking) {
-    if (booking.tanggal == null) return null;
+  if (booking.tanggal == null) return null;
+  
+  try {
+    print("PARSING BOOKING: ${booking.id} - ${booking.tanggal} - ${booking.waktu ?? 'no waktu'} - JamMulai: ${booking.jamMulai}, JamSelesai: ${booking.jamSelesai}");
     
-    try {
-      print("PARSING BOOKING: ${booking.id} - ${booking.tanggal} - ${booking.waktu ?? 'no waktu'} - JamMulai: ${booking.jamMulai}, JamSelesai: ${booking.jamSelesai}");
-      
-      // First check if the date string has a UTC timestamp format
-      if (booking.tanggal!.contains("-") && booking.tanggal!.contains(":")) {
-        // Handle formats like "2025-05-02 04:00:00"
-        try {
-          // Parse the raw datetime string
-          String dateTimeString = booking.tanggal!;
-          
-          // Convert to DateTime (in UTC)
-          DateTime utcDateTime = DateTime.parse(dateTimeString.replaceAll(' ', 'T') + 'Z');
-          
-          // Convert to local time
-          DateTime localDateTime = utcDateTime.toLocal();
-          
-          print("Converted UTC date ${dateTimeString} to local: ${localDateTime}");
-          
-          // Extract time information for hour checks
-          int startHour = 0;
-          int startMinute = 0;
-          int endHour = 0;
-          int endMinute = 0;
-          
-          // If we have specific booking start/end times, use those
-          if (booking.jamMulai != null && booking.jamSelesai != null) {
-            startHour = booking.jamMulai!;
-            endHour = booking.jamSelesai!;
-          } 
-          // Otherwise extract from the datetime
-          else {
-            startHour = localDateTime.hour;
-            startMinute = localDateTime.minute;
-            endHour = startHour + 1;  // Assume 1-hour booking
-            endMinute = startMinute;
-            
-            // Update the booking object with the correct times
-            booking.jamMulai = startHour;
-            booking.jamSelesai = endHour;
-            
-            // Create or update the waktu field
-            booking.waktu = "${startHour.toString().padLeft(2, '0')}:00-${endHour.toString().padLeft(2, '0')}:00";
-          }
-          
-          // Create start and end DateTimes
-          final startDateTime = DateTime(
-            localDateTime.year, localDateTime.month, localDateTime.day, startHour, startMinute
-          );
-          
-          final endDateTime = DateTime(
-            localDateTime.year, localDateTime.month, localDateTime.day, endHour, endMinute
-          );
-          
-          print("TIMEZONE ADJUSTED - Start: $startDateTime, End: $endDateTime");
-          
-          return {
-            'start': startDateTime,
-            'end': endDateTime,
-          };
-        } catch (e) {
-          print("Error parsing ISO datetime: $e");
-          // Fall through to other parsing methods
-        }
-      }
-      
-      // Rest of your existing parsing logic for other formats
-      // ...
-      
-      DateTime bookingDate;
-      
-      // FIXED: Handle ISO format date with time (2025-05-02 15:00:00)
-      if (booking.tanggal!.contains(" ") && booking.tanggal!.contains("-")) {
-        // Format: "2025-05-02 15:00:00"
-        try {
-          final dateParts = booking.tanggal!.split(' ');
-          final dateStr = dateParts[0]; // "2025-05-02"
-          final dateComponents = dateStr.split('-');
-          
-          if (dateComponents.length == 3) {
-            final year = int.parse(dateComponents[0]);
-            final month = int.parse(dateComponents[1]);
-            final day = int.parse(dateComponents[2]);
-            bookingDate = DateTime(year, month, day);
-            
-            // If we have a time part, try to extract hours
-            if (dateParts.length > 1) {
-              final timeStr = dateParts[1]; // "15:00:00"
-              final timeParts = timeStr.split(':');
-              if (timeParts.length >= 2) {
-                // Set or override jamMulai and jamSelesai
-                booking.jamMulai = int.parse(timeParts[0]);
-                booking.jamSelesai = booking.jamMulai! + 1;
-                
-                // Set or update waktu field
-                booking.waktu = "${booking.jamMulai.toString().padLeft(2, '0')}:00-${booking.jamSelesai.toString().padLeft(2, '0')}:00";
-              }
-            }
-          } else {
-            throw Exception("Invalid date format");
-          }
-        } catch (e) {
-          print("Error parsing datetime: $e");
-          return null;
-        }
-      }
-      else if (booking.tanggal!.contains("T")) {
-        // ISO format: "2025-05-01T00:00:00"
-        bookingDate = DateTime.parse(booking.tanggal!).toLocal();
-      } else if (booking.tanggal!.contains("-")) {
-        // Format: "2025-05-01"
-        bookingDate = DateTime.parse(booking.tanggal!);
-      } else {
-        // Format: "1 Mei 2025"
-        final dateComponents = booking.tanggal!.split(" ");
-        if (dateComponents.length != 3) {
-          print("Invalid date format: ${booking.tanggal}");
-          return null;
+    DateTime bookingDate;
+    
+    // PRIORITAS 1: Parse format database langsung (ISO format dengan timezone)
+    if (booking.tanggal!.contains("T") || booking.tanggal!.contains(" ")) {
+      try {
+        // Handle format seperti "2025-01-01 11:42:41" atau "2025-01-01T11:42:41"
+        String dateTimeString = booking.tanggal!;
+        
+        // Normalize format
+        if (dateTimeString.contains(" ")) {
+          dateTimeString = dateTimeString.replaceAll(" ", "T");
         }
         
+        // Parse as UTC then convert to local
+        DateTime utcDateTime;
+        if (dateTimeString.endsWith("Z")) {
+          utcDateTime = DateTime.parse(dateTimeString);
+        } else {
+          utcDateTime = DateTime.parse(dateTimeString + "Z");
+        }
+        
+        // Convert to local timezone
+        bookingDate = utcDateTime.toLocal();
+        
+        print("Parsed UTC datetime ${booking.tanggal} to local: ${bookingDate}");
+        
+        // Extract time dari database jika ada jam_mulai dan jam_selesai
+        int startHour = booking.jamMulai ?? bookingDate.hour;
+        int endHour = booking.jamSelesai ?? (startHour + 1);
+        
+        // Override jam dengan jam_mulai/jam_selesai dari database
+        final startDateTime = DateTime(
+          bookingDate.year, bookingDate.month, bookingDate.day,
+          startHour, 0
+        );
+        
+        final endDateTime = DateTime(
+          bookingDate.year, bookingDate.month, bookingDate.day,
+          endHour, 0
+        );
+        
+        print("Final booking times: Start=$startDateTime, End=$endDateTime");
+        
+        return {
+          'start': startDateTime,
+          'end': endDateTime,
+        };
+        
+      } catch (e) {
+        print("Error parsing ISO format: $e");
+        // Fallback ke parsing lama
+      }
+    }
+    
+    // PRIORITAS 2: Format display "1 Mei 2025"
+    if (booking.tanggal!.contains(" ") && !booking.tanggal!.contains("-")) {
+      final dateComponents = booking.tanggal!.split(" ");
+      if (dateComponents.length == 3) {
         final day = int.parse(dateComponents[0]);
         
-        // Convert month name to number
         final months = [
           'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
           'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
@@ -335,90 +252,109 @@ class _ActiveBookingsPageState extends State<ActiveBookingsPage> {
         
         final year = int.parse(dateComponents[2]);
         bookingDate = DateTime(year, month, day);
+      } else {
+        return null;
       }
-      
-      // Extract hours directly from booking_date if it has time component
-      int startHour = 0;
-      int startMinute = 0;
-      int endHour = 0;
-      int endMinute = 0;
-      
-      // Use jamMulai/jamSelesai if available (highest priority)
-      if (booking.jamMulai != null && booking.jamSelesai != null) {
-        startHour = booking.jamMulai!;
-        endHour = booking.jamSelesai!;
-        print("Using jamMulai/jamSelesai: $startHour-$endHour");
-      }
-      // Otherwise parse from waktu string if available
-      else if (booking.waktu != null) {
-        try {
-          if (booking.waktu!.contains("-")) {
-            final timeParts = booking.waktu!.split("-");
-            final startTimePart = timeParts[0].trim();
-            final endTimePart = timeParts[1].trim();
-            
-            final startTimePieces = startTimePart.split(":");
-            startHour = int.parse(startTimePieces[0]);
-            startMinute = startTimePieces.length > 1 ? int.parse(startTimePieces[1]) : 0;
-            
-            final endTimePieces = endTimePart.split(":");
-            endHour = int.parse(endTimePieces[0]);
-            endMinute = endTimePieces.length > 1 ? int.parse(endTimePieces[1]) : 0;
-          } else {
-            final timeParts = booking.waktu!.split(":");
-            startHour = int.parse(timeParts[0]);
-            startMinute = timeParts.length > 1 ? int.parse(timeParts[1]) : 0;
-            endHour = startHour + 1;
-            endMinute = startMinute;
-          }
-          
-          // Update jamMulai and jamSelesai for future reference
-          booking.jamMulai = startHour;
-          booking.jamSelesai = endHour;
-        } catch (e) {
-          print("Error parsing time from waktu: $e");
-          return null;
-        }
-      }
-      
-      // Create proper DateTime objects with the parsed values
-      final startDateTime = DateTime(
-        bookingDate.year, bookingDate.month, bookingDate.day,
-        startHour, startMinute
-      );
-      
-      final endDateTime = DateTime(
-        bookingDate.year, bookingDate.month, bookingDate.day,
-        endHour, endMinute
-      );
-      
-      print("Final parsed datetime: Start=$startDateTime, End=$endDateTime");
-      return {
-        'start': startDateTime,
-        'end': endDateTime,
-      };
-    } catch (e) {
-      print("Error parsing booking dates: $e");
+    }
+    // PRIORITAS 3: Format "2025-01-01"
+    else if (booking.tanggal!.contains("-") && !booking.tanggal!.contains(" ")) {
+      bookingDate = DateTime.parse(booking.tanggal!);
+    } else {
       return null;
     }
+    
+    // Extract time information
+    int startHour = 0;
+    int startMinute = 0;
+    int endHour = 0;
+    int endMinute = 0;
+    
+    // PRIORITAS 1: Gunakan jam_mulai dan jam_selesai dari database
+    if (booking.jamMulai != null && booking.jamSelesai != null) {
+      startHour = booking.jamMulai!;
+      endHour = booking.jamSelesai!;
+      print("Using database jam_mulai/jam_selesai: $startHour-$endHour");
+    }
+    // PRIORITAS 2: Parse dari waktu string
+    else if (booking.waktu != null) {
+      try {
+        if (booking.waktu!.contains("-")) {
+          final timeParts = booking.waktu!.split("-");
+          final startTimePart = timeParts[0].trim();
+          final endTimePart = timeParts[1].trim();
+          
+          final startTimePieces = startTimePart.split(":");
+          startHour = int.parse(startTimePieces[0]);
+          startMinute = startTimePieces.length > 1 ? int.parse(startTimePieces[1]) : 0;
+          
+          final endTimePieces = endTimePart.split(":");
+          endHour = int.parse(endTimePieces[0]);
+          endMinute = endTimePieces.length > 1 ? int.parse(endTimePieces[1]) : 0;
+        } else {
+          final timeParts = booking.waktu!.split(":");
+          startHour = int.parse(timeParts[0]);
+          startMinute = timeParts.length > 1 ? int.parse(timeParts[1]) : 0;
+          endHour = startHour + 1;
+          endMinute = startMinute;
+        }
+        
+        // Update booking object
+        booking.jamMulai = startHour;
+        booking.jamSelesai = endHour;
+      } catch (e) {
+        print("Error parsing time from waktu: $e");
+        return null;
+      }
+    }
+    
+    // Create proper DateTime objects
+    final startDateTime = DateTime(
+      bookingDate.year, bookingDate.month, bookingDate.day,
+      startHour, startMinute
+    );
+    
+    final endDateTime = DateTime(
+      bookingDate.year, bookingDate.month, bookingDate.day,
+      endHour, endMinute
+    );
+    
+    print("Final parsed datetime: Start=$startDateTime, End=$endDateTime");
+    return {
+      'start': startDateTime,
+      'end': endDateTime,
+    };
+  } catch (e) {
+    print("Error parsing booking dates: $e");
+    return null;
   }
+}
 
   bool isBookingValid(Booking booking) {
-    // Check for required fields
     if (booking.id == null || booking.tanggal == null) {
       print("Invalid booking: missing id or tanggal");
       return false;
     }
     
-    // ENHANCED: If booking_date contains time information, that's enough
-    if (booking.tanggal!.contains(":")) {
-      return true;
+    // Enhanced validation - accept bookings with either waktu OR jam fields
+    bool hasTimeInfo = false;
+    
+    // Check if we have waktu string
+    if (booking.waktu != null && booking.waktu!.isNotEmpty) {
+      hasTimeInfo = true;
     }
     
-    // Check if we can determine the booking time
-    if ((booking.waktu == null && booking.jamMulai == null) || 
-        (booking.waktu == null && booking.jamSelesai == null)) {
-      print("Invalid booking: can't determine booking time");
+    // Check if we have jam_mulai and jam_selesai from database
+    if (booking.jamMulai != null && booking.jamSelesai != null) {
+      hasTimeInfo = true;
+    }
+    
+    // Check if tanggal contains datetime info
+    if (booking.tanggal!.contains("T") || booking.tanggal!.contains(" ")) {
+      hasTimeInfo = true;
+    }
+    
+    if (!hasTimeInfo) {
+      print("Invalid booking ${booking.id}: no time information available");
       return false;
     }
     

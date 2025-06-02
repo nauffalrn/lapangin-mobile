@@ -249,92 +249,48 @@ class BookingService {
 
   static Future<List<Booking>> getBookingHistory() async {
     try {
-      print("Mengambil riwayat booking...");
-
-      // Pastikan token valid
-      final token = await AuthService.getToken();
-      if (token == null || token.isEmpty) {
-        throw Exception('Silakan login terlebih dahulu');
-      }
-
-      // Gunakan path yang benar
-      final url = '${ApiConfig.baseUrl}/booking/history';
-
+      print("Fetching all bookings from backend...");
+      
+      final headers = await ApiConfig.getAuthHeaders();
       final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+        Uri.parse('${ApiConfig.baseUrl}/booking/all'), // Gunakan endpoint /all
+        headers: headers,
+      ).timeout(const Duration(seconds: 15));
 
-      print("Status response history: ${response.statusCode}");
-      print(
-        "Response body preview: ${response.body.substring(0, Math.min(200, response.body.length))}...",
-      );
+      print("Booking history response status: ${response.statusCode}");
+      print("Booking history response body: ${response.body}");
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        List<Booking> bookings = [];
-
+        final data = jsonDecode(response.body);
+        
         if (data['success'] == true && data['data'] != null) {
-          List<dynamic> bookingsData = data['data'];
-          print("Berhasil mengambil ${bookingsData.length} booking");
+          List<dynamic> bookingsJson = data['data'];
+          
+          // Parse setiap booking dengan preprocessing untuk memastikan format yang konsisten
+          List<Booking> bookings = bookingsJson.map((json) {
+            // Preprocess data untuk memastikan format yang konsisten
+            Map<String, dynamic> processedJson = _preprocessBookingData(json);
+            return Booking.fromJson(processedJson);
+          }).toList();
 
-          // Process each booking
-          for (int i = 0; i < bookingsData.length; i++) {
-            try {
-              var item = bookingsData[i];
-
-              // Create a comprehensive processed item with all possible fields
-              Map<String, dynamic> processed = _preprocessBookingData(item);
-
-              // IMPORTANT: Create waktu field if missing
-              if (processed['waktu'] == null &&
-                  processed['jamMulai'] != null &&
-                  processed['jamSelesai'] != null) {
-                int jamMulai =
-                    processed['jamMulai'] is int
-                        ? processed['jamMulai']
-                        : int.tryParse(processed['jamMulai'].toString()) ?? 0;
-
-                int jamSelesai =
-                    processed['jamSelesai'] is int
-                        ? processed['jamSelesai']
-                        : int.tryParse(processed['jamSelesai'].toString()) ?? 0;
-
-                processed['waktu'] =
-                    "${jamMulai.toString().padLeft(2, '0')}:00-${jamSelesai.toString().padLeft(2, '0')}:00";
-              }
-
-              // Create a booking object from processed data
-              final booking = Booking.fromJson(processed);
-
-              // CRITICAL: Save each booking locally for reliable access
-              await saveBookingLocally(booking);
-
-              // Add to results
-              bookings.add(booking);
-            } catch (e) {
-              print("Error processing booking #${i + 1}: $e");
-            }
-          }
+          print("Successfully parsed ${bookings.length} bookings");
+          
+          // Debug: Print beberapa booking untuk verifikasi
+          bookings.take(3).forEach((booking) {
+            print("Booking ${booking.id}: ${booking.tanggal}, ${booking.waktu}, jamMulai: ${booking.jamMulai}, jamSelesai: ${booking.jamSelesai}");
+          });
 
           return bookings;
         } else {
-          print("API returned success=false or empty data");
+          print("API response success=false or data=null");
           return [];
         }
-      } else if (response.statusCode == 401) {
-        print("Invalid token: ${response.body}");
-        throw Exception('Your session has expired. Please log in again.');
       } else {
-        print("Error status: ${response.statusCode}");
-        return [];
+        throw Exception('Failed to load booking history: ${response.statusCode}');
       }
     } catch (e) {
-      print("Exception in getBookingHistory: $e");
-      throw e;
+      print("Error fetching booking history: $e");
+      throw Exception('Failed to load booking history: $e');
     }
   }
 
@@ -754,9 +710,14 @@ class BookingService {
 
             // Extract hours for jamMulai/jamSelesai
             final timeComponents = timePart.split(":");
-            processed['jamMulai'] = int.parse(timeComponents[0]);
-            processed['jamSelesai'] =
-                processed['jamMulai'] + 1; // Assuming 1-hour slots
+            if (timeComponents.isNotEmpty) {
+              int jamMulai = int.parse(timeComponents[0]);
+              processed['jamMulai'] = jamMulai;
+              // Hanya set jamSelesai jika belum ada
+              if (processed['jamSelesai'] == null) {
+                processed['jamSelesai'] = jamMulai + 1; // Assuming 1-hour slots
+              }
+            }
           }
           // Standard format with space: "2025-05-01 15:00:00"
           else if (dateStr.contains(" ")) {
@@ -766,9 +727,14 @@ class BookingService {
 
             // Extract hours for jamMulai/jamSelesai
             final timeComponents = timePart.split(":");
-            processed['jamMulai'] = int.parse(timeComponents[0]);
-            processed['jamSelesai'] =
-                processed['jamMulai'] + 1; // Assuming 1-hour slots
+            if (timeComponents.isNotEmpty) {
+              int jamMulai = int.parse(timeComponents[0]);
+              processed['jamMulai'] = jamMulai;
+              // Hanya set jamSelesai jika belum ada
+              if (processed['jamSelesai'] == null) {
+                processed['jamSelesai'] = jamMulai + 1; // Assuming 1-hour slots
+              }
+            }
 
             // Also format for Indonesian display - Tanggal needs to be in the local format
             try {
@@ -779,21 +745,13 @@ class BookingService {
                 final day = dateComponents[2];
 
                 final months = [
-                  'Januari',
-                  'Februari',
-                  'Maret',
-                  'April',
-                  'Mei',
-                  'Juni',
-                  'Juli',
-                  'Agustus',
-                  'September',
-                  'Oktober',
-                  'November',
-                  'Desember',
+                  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
                 ];
 
-                processed['tanggal'] = "$day ${months[month - 1]} $year";
+                if (month >= 1 && month <= 12) {
+                  processed['tanggal'] = "$day ${months[month - 1]} $year";
+                }
               }
             } catch (e) {
               print("Error formatting date: $e");
@@ -801,13 +759,12 @@ class BookingService {
           }
 
           // Ensure waktu field is created if not present
-          if (processed['waktu'] == null &&
-              processed['jamMulai'] != null &&
+          if (processed['waktu'] == null && 
+              processed['jamMulai'] != null && 
               processed['jamSelesai'] != null) {
             int jamMulai = processed['jamMulai'];
             int jamSelesai = processed['jamSelesai'];
-            processed['waktu'] =
-                "${jamMulai.toString().padLeft(2, '0')}:00-${jamSelesai.toString().padLeft(2, '0')}:00";
+            processed['waktu'] = "${jamMulai.toString().padLeft(2, '0')}:00-${jamSelesai.toString().padLeft(2, '0')}:00";
           }
         } catch (e) {
           print("Error processing date format: $e");
@@ -832,21 +789,33 @@ class BookingService {
       }
     }
 
-    // Rest of your preprocessing code
-    // ...
+    // Handle lapangan data
+    if (processed['lapangan'] != null && processed['lapangan'] is Map) {
+      Map<String, dynamic> lapanganData = processed['lapangan'];
+      
+      // Extract lapangan fields to root level
+      if (processed['namaLapangan'] == null && lapanganData['namaLapangan'] != null) {
+        processed['namaLapangan'] = lapanganData['namaLapangan'];
+      }
+      
+      if (processed['lokasi'] == null && lapanganData['alamatLapangan'] != null) {
+        processed['lokasi'] = lapanganData['alamatLapangan'];
+      }
+      
+      if (processed['lapanganId'] == null && lapanganData['id'] != null) {
+        processed['lapanganId'] = lapanganData['id'];
+      }
+    }
 
     return processed;
   }
 
-  // Pastikan di booking_services.dart ketika memparsing respons API
-  // Anda mengambil nilai jamMulai dan jamSelesai
+  // PERBAIKAN untuk method fromJson - hapus static dan perbaiki null safety
   static Booking fromJson(Map<String, dynamic> json) {
     // Debug log untuk melihat data mentah
-    print(
-      "Parsing Booking from JSON with time data: jamMulai=${json['jamMulai']}, jamSelesai=${json['jamSelesai']}",
-    );
+    print("Parsing Booking from JSON with time data: jamMulai=${json['jamMulai']}, jamSelesai=${json['jamSelesai']}");
 
-    // Parse jam mulai dengan pengecekan tipe data yang ketat
+    // Parse jam mulai dengan pengecekan null safety
     int? jamMulai;
     if (json['jamMulai'] != null) {
       if (json['jamMulai'] is int) {
@@ -856,7 +825,7 @@ class BookingService {
       }
     }
 
-    // Parse jam selesai dengan pengecekan tipe data yang ketat
+    // Parse jam selesai dengan pengecekan null safety
     int? jamSelesai;
     if (json['jamSelesai'] != null) {
       if (json['jamSelesai'] is int) {
@@ -866,28 +835,106 @@ class BookingService {
       }
     }
 
+    // Parse ID dengan null safety
+    int? id;
+    if (json['id'] != null) {
+      if (json['id'] is int) {
+        id = json['id'];
+      } else {
+        id = int.tryParse(json['id'].toString());
+      }
+    }
+
+    // Parse lapanganId dengan null safety
+    int? lapanganId;
+    if (json['lapanganId'] != null) {
+      if (json['lapanganId'] is int) {
+        lapanganId = json['lapanganId'];
+      } else {
+        lapanganId = int.tryParse(json['lapanganId'].toString());
+      }
+    }
+
+    // Parse totalPrice dengan null safety
+    double? totalPrice;
+    if (json['totalPrice'] != null) {
+      if (json['totalPrice'] is double) {
+        totalPrice = json['totalPrice'];
+      } else if (json['totalPrice'] is int) {
+        totalPrice = (json['totalPrice'] as int).toDouble();
+      } else {
+        totalPrice = double.tryParse(json['totalPrice'].toString());
+      }
+    }
+
+    // Parse rating dengan null safety
+    int? rating;
+    if (json['rating'] != null) {
+      if (json['rating'] is int) {
+        rating = json['rating'];
+      } else {
+        rating = int.tryParse(json['rating'].toString());
+      }
+    }
+
     return Booking(
-      id: json['id'],
-      lapanganId: json['lapanganId'],
-      namaLapangan: json['namaLapangan'],
-      lokasi: json['lokasi'],
-      tanggal: json['tanggal'],
-      waktu: json['waktu'],
-      rating: json['rating'],
-      review: json['review'],
-      reviewerName: json['reviewerName'],
-      reviewDate: json['reviewDate'],
-      jadwalList:
-          json['jadwalList'] != null
-              ? (json['jadwalList'] as List)
-                  .map((e) => JadwalItem.fromJson(e))
-                  .toList()
-              : [],
-      status: json['status'],
-      totalPrice: json['totalPrice'],
+      id: id,
+      lapanganId: lapanganId,
+      namaLapangan: json['namaLapangan']?.toString(),
+      lokasi: json['lokasi']?.toString(),
+      tanggal: json['tanggal']?.toString(),
+      waktu: json['waktu']?.toString(),
+      rating: rating,
+      review: json['review']?.toString(),
+      reviewerName: json['reviewerName']?.toString(),
+      reviewDate: json['reviewDate']?.toString(),
+      jadwalList: json['jadwalList'] != null
+          ? (json['jadwalList'] as List).map((e) => JadwalItem.fromJson(e)).toList()
+          : [],
+      status: json['status']?.toString(),
+      totalPrice: totalPrice,
       lapanganData: json['lapangan'],
       jamMulai: jamMulai,
       jamSelesai: jamSelesai,
     );
+  }
+
+  // Tambahkan method _apiCall yang hilang
+  static Future<Map<String, dynamic>> _apiCall(String method, String endpoint) async {
+    try {
+      final headers = await ApiConfig.getAuthHeaders();
+      late http.Response response;
+      
+      final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+      
+      switch (method.toUpperCase()) {
+        case 'GET':
+          response = await http.get(url, headers: headers);
+          break;
+        case 'POST':
+          response = await http.post(url, headers: headers);
+          break;
+        case 'PUT':
+          response = await http.put(url, headers: headers);
+          break;
+        case 'DELETE':
+          response = await http.delete(url, headers: headers);
+          break;
+        default:
+          throw Exception('Unsupported HTTP method: $method');
+      }
+
+      print("API Call $method $endpoint - Status: ${response.statusCode}");
+      print("Response body: ${response.body}");
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('API call failed: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print("Error in API call $method $endpoint: $e");
+      throw e;
+    }
   }
 }
