@@ -377,10 +377,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
         // Navigasi ke login tanpa clear route
         Navigator.pushReplacementNamed(context, '/login');
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Berhasil logout. Data profil tersimpan.')),
-        );
       } catch (e) {
         ScaffoldMessenger.of(
           context,
