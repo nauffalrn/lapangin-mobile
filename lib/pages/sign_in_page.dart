@@ -187,9 +187,6 @@ class __FormContentState extends State<_FormContent> {
                 if (value == null || value.isEmpty) {
                   return 'Please enter your password';
                 }
-                if (value.length < 6) {
-                  return 'Password must be at least 6 characters';
-                }
                 return null;
               },
               obscureText: !_isPasswordVisible,
