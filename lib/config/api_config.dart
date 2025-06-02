@@ -3,7 +3,7 @@ import '../services/auth_service.dart';
 import 'dart:math';
 
 class ApiConfig {
-  static const baseUrl = "http://192.168.98.25:8181/api";
+  static const baseUrl = "http://192.168.1.6:8181/api";
 
   static String getImageUrl(String? imagePath) {
     if (imagePath == null || imagePath.isEmpty) return "";

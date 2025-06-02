@@ -4,7 +4,6 @@ import 'pages/history.dart';
 import 'pages/profile.dart';
 import 'pages/sign_in_page.dart';
 import 'pages/register.dart';
-import 'pages/forgotpassword.dart';
 import 'services/auth_service.dart';
 import 'pages/tracking_booking.dart'; // Add this import
 import 'pages/active_bookings_page.dart';
@@ -46,7 +45,6 @@ class MyApp extends StatelessWidget {
         '/history': (context) => HistoryBookingPage(),
         '/profile': (context) => ProfilePage(),
         '/register': (context) => const RegisterPage(),
-        '/forgotpassword': (context) => const ForgotPasswordPage(),
         '/tracking':
             (context) => TrackingBookingPage(
               bookingId: ModalRoute.of(context)!.settings.arguments as int,

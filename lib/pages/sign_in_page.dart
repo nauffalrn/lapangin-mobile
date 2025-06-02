@@ -91,13 +91,10 @@ class _FormContent extends StatefulWidget {
 
 class __FormContentState extends State<_FormContent> {
   bool _isPasswordVisible = false;
-  bool _rememberMe = false;
-
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _loginController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _usernameController =
-      TextEditingController(); // Tambahkan controller untuk username
+  String? _loginError; // Tambahkan ini
 
   @override
   void initState() {
@@ -227,34 +224,18 @@ class __FormContentState extends State<_FormContent> {
               ),
             ),
             _gap(),
-            CheckboxListTile(
-              value: _rememberMe,
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  _rememberMe = value;
-                });
-              },
-              title: const Text(
-                'Remember me',
-                style: TextStyle(color: Colors.white), // Warna teks putih
-              ),
-              controlAffinity: ListTileControlAffinity.leading,
-              dense: true,
-              contentPadding: const EdgeInsets.all(0),
-            ),
-            _gap(),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 23.0,
-                  ), // Tambahkan padding vertikal untuk membuat tombol lebih tinggi
+                  padding: const EdgeInsets.symmetric(vertical: 23.0),
                 ),
                 child: const Text('Sign in'),
                 onPressed: () async {
                   if (_formKey.currentState?.validate() ?? false) {
+                    setState(() {
+                      _loginError = null; // Reset error sebelum login
+                    });
                     try {
                       print("=== LOGIN BUTTON PRESSED ===");
                       print("Username: ${_loginController.text}");
@@ -292,75 +273,51 @@ class __FormContentState extends State<_FormContent> {
                                     "Login timed out. Please try again.",
                                   ),
                         );
-
                         if (!mounted) return;
-
-                        // Close the loading dialog
                         Navigator.of(context).pop();
-
-                        print("=== LOGIN SUCCESS - NAVIGATING ===");
-
-                        // Navigate to home page
                         Navigator.of(
                           context,
                         ).pushNamedAndRemoveUntil('/', (route) => false);
                       } catch (e) {
                         if (!mounted) return;
-
-                        // Close the loading dialog
                         Navigator.of(context).pop();
-
-                        print("=== LOGIN FAILED ===");
-                        print("Error details: $e");
-
                         String errorMessage = e.toString();
-
-                        // Extract meaningful error message
+                        // Deteksi error login salah
                         if (errorMessage.contains(
-                          'Username atau password salah',
-                        )) {
-                          errorMessage =
-                              'Username atau password salah.\n\nPastikan:\n• Username benar\n• Password benar\n• Tidak ada spasi ekstra';
-                        } else if (errorMessage.contains('401')) {
-                          errorMessage =
-                              'Login ditolak server. Periksa username dan password Anda.';
-                        } else if (errorMessage.contains('timeout')) {
-                          errorMessage =
-                              'Koneksi timeout. Periksa internet Anda dan coba lagi.';
+                              'Username atau password salah',
+                            ) ||
+                            errorMessage.toLowerCase().contains(
+                              'invalid credentials',
+                            ) ||
+                            errorMessage.contains('401')) {
+                          setState(() {
+                            _loginError = 'Username atau password salah';
+                          });
+                        } else {
+                          setState(() {
+                            _loginError = 'Terjadi kesalahan. Coba lagi.';
+                          });
                         }
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(errorMessage),
-                            backgroundColor: Colors.red,
-                            duration: Duration(seconds: 5),
-                          ),
-                        );
                       }
                     } catch (e) {
                       if (!mounted) return;
 
                       print("=== UNEXPECTED ERROR ===");
                       print("Error: $e");
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error tidak terduga: ${e.toString()}'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
                     }
                   }
                 },
               ),
             ),
+            if (_loginError != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _loginError!,
+                style: const TextStyle(color: Colors.red, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+            ],
             _gap(),
-            TextButton(
-              onPressed: () {
-                Navigator.pushNamed(context, '/forgotpassword');
-              },
-              child: const Text('Forgot Password?'),
-            ),
             RichText(
               text: TextSpan(
                 style: Theme.of(context).textTheme.bodyMedium,
