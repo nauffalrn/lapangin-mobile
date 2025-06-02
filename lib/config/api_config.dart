@@ -3,7 +3,7 @@ import '../services/auth_service.dart';
 import 'dart:math';
 
 class ApiConfig {
-  static const baseUrl = "http://192.168.192.186:8181/api";
+  static const baseUrl = "http://10.60.36.54:8181/api";
 
   static String getImageUrl(String? imagePath) {
     if (imagePath == null || imagePath.isEmpty) return "";
@@ -112,7 +112,8 @@ class ApiConfig {
     return "$baseUrl/booking/reviews/$lapanganId";
   }
 
+  // PERBAIKAN: Ganti endpoint untuk submit review
   static String getAddReviewUrl() {
-    return "$baseUrl/review";
+    return "$baseUrl/booking/review"; // Ganti dari "/review" ke "/booking/review"
   }
 }

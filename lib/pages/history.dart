@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/services/auth_service.dart';
+import 'package:mobile/services/review_services.dart';
 import '../widgets/bottom_navbar.dart';
 import '../models/booking_model.dart';
 import '../services/booking_services.dart';
@@ -97,89 +98,87 @@ class _HistoryBookingPageState extends State<HistoryBookingPage> {
 
     showDialog(
       context: context,
-      builder:
-          (context) => StatefulBuilder(
-            builder:
-                (context, setState) => AlertDialog(
-                  title: Text('Berikan Review'),
-                  content: Container(
-                    width: double.maxFinite,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Rating stars - perbaiki overflow dengan Wrap
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(5, (index) {
-                            return InkWell(
-                              onTap: () {
-                                setState(() {
-                                  selectedRating = index + 1;
-                                });
-                              },
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 4.0,
-                                ), // Sedikit lebih besar padding
-                                child: Icon(
-                                  index < selectedRating
-                                      ? Icons.star
-                                      : Icons.star_border,
-                                  color: Colors.amber,
-                                  size: 28, // Ukuran lebih besar
-                                ),
-                              ),
-                            );
-                          }),
-                        ),
-                        SizedBox(height: 16),
-                        TextField(
-                          controller: reviewController,
-                          decoration: InputDecoration(
-                            hintText: 'Tulis komentar Anda...',
-                            border: OutlineInputBorder(),
-                          ),
-                          maxLines: 3,
-                        ),
-                      ],
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text('Batal'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        try {
-                          // Aktifkan kode untuk mengirim review
-                          await BookingService.submitReview(
-                            bookingId,
-                            selectedRating,
-                            reviewController.text,
-                          );
-
-                          Navigator.pop(context); // Close dialog
-
-                          // Refresh history
-                          _fetchBookingHistory();
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Review berhasil dikirim!')),
-                          );
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Gagal mengirim review: $e'),
-                            ),
-                          );
-                        }
-                      },
-                      child: Text('Kirim'),
-                    ),
-                  ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Berikan Review'),
+          content: Container(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Rating stars - perbaiki overflow dengan Wrap
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (index) {
+                    return IconButton(
+                      icon: Icon(
+                        index < selectedRating ? Icons.star : Icons.star_border,
+                        color: Colors.amber,
+                      ),
+                      onPressed: () => setState(() => selectedRating = index + 1),
+                    );
+                  }),
                 ),
+                TextField(
+                  controller: reviewController,
+                  decoration: InputDecoration(labelText: 'Komentar'),
+                  maxLines: 3,
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () async {
+                if (reviewController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Mohon isi komentar')),
+                  );
+                  return;
+                }
+
+                try {
+                  // Find the booking to get lapanganId
+                  final booking = _bookings.firstWhere((b) => b.id == bookingId);
+                  int lapanganId = booking.lapanganId ?? 0;
+                  
+                  if (lapanganId == 0) {
+                    throw Exception('Lapangan ID tidak ditemukan');
+                  }
+
+                  // Submit review dengan lapanganId
+                  await ReviewService.submitReview(
+                    lapanganId: lapanganId,
+                    bookingId: bookingId,
+                    rating: selectedRating.toDouble(),
+                    comment: reviewController.text,
+                  );
+
+                  Navigator.pop(context); // Close dialog
+
+                  // Refresh history
+                  _fetchBookingHistory();
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Review berhasil dikirim!')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Gagal mengirim review: $e'),
+                    ),
+                  );
+                }
+              },
+              child: Text('Kirim'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

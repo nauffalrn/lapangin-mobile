@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:mobile/services/auth_service.dart';
 import '../models/review_model.dart';
 import '../config/api_config.dart';
 
@@ -41,28 +42,42 @@ class ReviewService {
     }
   }
 
-  // Submit a review (optional - if you need this functionality)
+  // ALTERNATIF: Submit review dengan parameter yang konsisten
   static Future<void> submitReview({
     required int lapanganId,
-    required int bookingId, // Add this parameter
+    required int bookingId,
     required double rating,
     required String comment,
   }) async {
     try {
+      print("Submitting review for booking $bookingId with rating $rating");
+      print("Comment: $comment");
+
+      // Kirim sebagai form data dengan semua parameter yang dibutuhkan
       final response = await http.post(
-        Uri.parse(ApiConfig.getAddReviewUrl()), // Use your config method
-        headers: await ApiConfig.getAuthHeaders(),
-        body: jsonEncode({
-          'lapangan': {'id': lapanganId},
-          'booking': {'id': bookingId},
-          'rating': rating,
-          'komentar': comment, // Changed from 'comment' to 'komentar'
-          'tanggalReview': DateTime.now().toIso8601String(),
-        }),
+        Uri.parse('${ApiConfig.baseUrl}/booking/review'),
+        headers: {
+          'Authorization': 'Bearer ${await AuthService.getToken()}',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {
+          'bookingId': bookingId.toString(),
+          'lapanganId': lapanganId.toString(), // Add lapanganId parameter
+          'rating': rating.toInt().toString(),
+          'komentar': comment,
+        },
       );
 
-      if (response.statusCode != 200) {
-        throw Exception('Failed to submit review: ${response.statusCode}');
+      print("Review submission response: ${response.statusCode}");
+      print("Response body: ${response.body}");
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] != true) {
+          throw Exception(data['message'] ?? 'Failed to submit review');
+        }
+      } else {
+        throw Exception('Failed to submit review: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       print("Error submitting review: $e");
